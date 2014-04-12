@@ -9,7 +9,7 @@ setup(
     setup_requires   = ['nose>=1.1.2'],
     install_requires = [
 			'pymongo>=2.6.2', 
-			'pymysql_utils>=0.24',
+			'pymysql_utils>=0.29',
 			'MySQL-python>=1.2.5', 
 			'configparser>=3.3.0r2', 
 			'argparse>=1.2.1', 
