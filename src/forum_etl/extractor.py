@@ -1,8 +1,7 @@
 from pymongo import MongoClient
 import subprocess
 from datetime import datetime
-#from pymysql_utils.pymysql_utils import MySQLDB
-from pymysql_utils1 import MySQLDB
+from pymysql_utils.pymysql_utils import MySQLDB
 
 import pickle
 import MySQLdb
