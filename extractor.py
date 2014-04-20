@@ -29,8 +29,6 @@ mysql_user=getpass.getuser()
 mysql_db='EdxForum'
 mydb=MySQLDB('127.0.0.1',3306,'jagadish','5PinkPenguines','EdxPrivate')
 
-
-
 mongo_database_name='TmpForum';
 collection_name='ForumContents';
 
@@ -109,9 +107,6 @@ userSet=set()
     except MySQLdb.Error,e:
         logging.info("MySql Error while user cache exiting %d: %s" % (e.args[0],e.args[1]))
         sys.exit(1)'''
-    
-
-
 
 #Populate the User Cache and preload information on user id int, screen name
 #and the actual name
