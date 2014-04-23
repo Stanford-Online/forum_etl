@@ -1,0 +1,41 @@
+{ "_id" : ObjectId( "519461545924670200000001" ), "_type" : "CommentThread", "anonymous" : false, "anonymous_to_peers" : false, "at_position_list" : [], "author_id" : "3", "author_user
+name" : "JasonBauCME1", "body" : "Aut dolor maiores quam qui. Autem possimus qui nihil quis. Consequatur vero aspernatur optio quod voluptatem aliquid. Iusto et aut. Non incidunt omnis
+ sit illum.\n\nMolestiae nihil quam corporis saepe. Dicta temporibus nostrum. Aut et aut temporibus.\n\nPerspiciatis itaque voluptas neque aut dolor harum voluptatem. Qui ut est omnis 
+dolorum cum adipisci voluptatum. Eveniet harum iste. Qui numquam quisquam corporis autem.", "closed" : false, "comment_count" : 8, "commentable_id" : "video_1", "course_id" : "MITx/6.0
+02x/2012_Fall", "created_at" : Date( 1368678740868 ), "last_activity_at" : Date( 1368678741432 ), "tags_array" : [ "c++", "2012", "c#" ], "title" : "Reiciendis nemo porro quaerat et no
+bis nihil quae incidunt voluptates minima.", "updated_at" : Date( 1368678740868 ), "votes" : { "count" : 10, "down" : [ "1", "3", "4", "5", "6", "7", "8", "9" ], "down_count" : 8, "poi
+nt" : -6, "up" : [ "2", "10" ], "up_count" : 2 } }
+{ "_id" : ObjectId( "519461545924670200000005" ), "_type" : "Comment", "anonymous" : false, "anonymous_to_peers" : false, "at_position_list" : [], "author_id" : "1", "author_username" 
+: "admin", "body" : "Recusandae nisi vitae rerum mollitia voluptate culpa. Ut eius sunt quasi qui odit vel perferendis.", "comment_thread_id" : ObjectId( "519461545924670200000001" ), 
+"course_id" : "MITx/6.002x/2012_Fall", "created_at" : Date( 1368678740961 ), "endorsed" : false, "parent_ids" : [], "updated_at" : Date( 1368678740961 ), "votes" : { "count" : 10, "dow
+n" : [ "3", "4", "10" ], "down_count" : 3, "point" : 4, "up" : [ "1", "2", "5", "6", "7", "8", "9" ], "up_count" : 7 }, "sk" : "519461545924670200000005" }
+{ "_id" : ObjectId( "519461555924670200000006" ), "_type" : "Comment", "anonymous" : false, "anonymous_to_peers" : false, "at_position_list" : [], "author_id" : "7", "author_username" 
+: "kjfalad9fiu", "body" : "Eum soluta accusantium dolores provident sit. Accusantium adipisci hic ullam. Vel magni quidem rerum libero. Omnis ex corporis qui aut omnis eum.", "comment_
+thread_id" : ObjectId( "519461545924670200000001" ), "course_id" : "MITx/6.002x/2012_Fall", "created_at" : Date( 1368678741022 ), "endorsed" : false, "parent_ids" : [], "updated_at" : 
+Date( 1368678741022 ), "votes" : { "count" : 10, "down" : [ "1", "2", "3", "4", "5", "7", "9" ], "down_count" : 7, "point" : -4, "up" : [ "6", "8", "10" ], "up_count" : 3 }, "sk" : "51
+9461555924670200000006" }
+{ "_id" : ObjectId( "519461555924670200000007" ), "_type" : "Comment", "anonymous" : false, "anonymous_to_peers" : false, "at_position_list" : [], "author_id" : "1", "author_username" 
+: "admin", "body" : "Eveniet illum animi nihil non. Voluptatem odio enim eaque voluptatem beatae rerum consequatur. Unde laborum dolores laboriosam dolor aliquam voluptates.", "comment
+_thread_id" : ObjectId( "519461545924670200000001" ), "course_id" : "MITx/6.002x/2012_Fall", "created_at" : Date( 1368678741079 ), "endorsed" : true, "parent_id" : ObjectId( "519461555
+924670200000006" ), "parent_ids" : [ ObjectId( "519461555924670200000006" ) ], "updated_at" : Date( 1368678741079 ), "votes" : { "up" : [], "down" : [], "up_count" : 0, "down_count" : 
+0, "count" : 0, "point" : 0 }, "sk" : "519461555924670200000006-519461555924670200000007" }
+{ "_id" : ObjectId( "519461555924670200000008" ), "_type" : "Comment", "anonymous" : false, "anonymous_to_peers" : false, "at_position_list" : [], "author_id" : "10", "author_username"
+ : "sef_at_stanford", "body" : "Neque excepturi molestias reiciendis qui tempora fuga. Dolor est repudiandae.", "comment_thread_id" : ObjectId( "519461545924670200000001" ), "course_id
+" : "MITx/6.002x/2012_Fall", "created_at" : Date( 1368678741133 ), "endorsed" : false, "parent_id" : ObjectId( "519461545924670200000005" ), "parent_ids" : [ ObjectId( "519461545924670
+200000005" ) ], "updated_at" : Date( 1368678741133 ), "votes" : { "up" : [], "down" : [], "up_count" : 0, "down_count" : 0, "count" : 0, "point" : 0 }, "sk" : "519461545924670200000005
+-519461555924670200000008" }
+{ "_id" : ObjectId( "519461555924670200000009" ), "_type" : "Comment", "anonymous" : false, "anonymous_to_peers" : false, "at_position_list" : [], "author_id" : "3", "author_username" 
+: "JasonBauCME1", "body" : "Eos similique nobis inventore suscipit quia voluptas. Laudantium ut dolorum. Odit voluptatem aut dolorem exercitationem delectus similique.", "comment_threa
+d_id" : ObjectId( "519461545924670200000001" ), "course_id" : "MITx/6.002x/2012_Fall", "created_at" : Date( 1368678741185 ), "endorsed" : true, "parent_id" : ObjectId( "519461545924670
+200000005" ), "parent_ids" : [ ObjectId( "519461545924670200000005" ) ], "updated_at" : Date( 1368678741185 ), "votes" : { "up" : [], "down" : [], "up_count" : 0, "down_count" : 0, "co
+unt" : 0, "point" : 0 }, "sk" : "519461545924670200000005-519461555924670200000009" }
+{ "_id" : ObjectId( "51946155592467020000000a" ), "_type" : "Comment", "anonymous" : false, "anonymous_to_peers" : false, "at_position_list" : [], "author_id" : "2", "author_username" 
+: "user2", "body" : "Exercitationem ullam error. Quaerat magni occaecati autem voluptatum ex commodi. Est sed veritatis odio magnam culpa ratione nihil.", "comment_thread_id" : ObjectI
+d( "519461545924670200000001" ), "course_id" : "MITx/6.002x/2012_Fall", "created_at" : Date( 1368678741251 ), "endorsed" : false, "parent_id" : ObjectId( "519461555924670200000006" ), 
+"parent_ids" : [ ObjectId( "519461555924670200000006" ) ], "updated_at" : Date( 1368678741251 ), "votes" : { "up" : [], "down" : [], "up_count" : 0, "down_count" : 0, "count" : 0, "poi
+nt" : 0 }, "sk" : "519461555924670200000006-51946155592467020000000a" }
+{ "_id" : ObjectId( "51946155592467020000000b" ), "_type" : "Comment", "anonymous" : false, "anonymous_to_peers" : false, "at_position_list" : [], "author_id" : "4", "author_username" 
+: "__jasonbau_x_", "body" : "Aut harum qui sunt voluptate voluptatem et non. Magni non possimus quis molestiae. Eos et quo voluptas eius repudiandae eveniet.", "comment_thread_id" : Ob
+jectId( "519461545924670200000001" ), "course_id" : "MITx/6.002x/2012_Fall", "created_at" : Date( 1368678741345 ), "endorsed" : false, "parent_id" : ObjectId( "519461545924670200000005
+" ), "parent_ids" : [ ObjectId( "519461545924670200000005" ) ], "updated_at" : Date( 1368678741345 ), "votes" : { "up" : [], "down" : [], "up_count" : 0, "down_count" : 0, "count" : 0,
+ "point" : 0 }, "sk" : "519461545924670200000005-51946155592467020000000b" }
