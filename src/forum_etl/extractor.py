@@ -1,16 +1,20 @@
-from pymongo import MongoClient
-import subprocess
+import MySQLdb
+from UserDict import DictMixin
+from collections import OrderedDict
 from datetime import datetime
+import getpass
+import logging
+import os
+import pickle
+from pymongo import MongoClient
+from mongodb import MongoDB
+import re
+import subprocess
+import sys
+import warnings
+
 from pymysql_utils.pymysql_utils import MySQLDB
 
-import pickle
-import MySQLdb
-import re
-import warnings
-import logging
-import sys
-import getpass
-import os
 
 class EdxForumScrubber(object):
     
@@ -24,10 +28,26 @@ class EdxForumScrubber(object):
     #emailPattern='(.*)\\s+([a-zA-Z0-9\\.]+)\\s*(\\(f.*b.*)?(@)\\s*([a-zA-Z0-9\\.\\s;]+)\\s*(\\.)\\s*(edu|com)\\s+(.*)'
     compiledEmailPattern = re.compile(emailPattern);
     
-    def __init__(self, bsonFileName, mysqlDbObj=None, forumTableName='contents'):
+    def __init__(self, bsonFileName, mysqlDbObj=None, forumTableName='contents', allUsersTableName='EdxPrivate.UserGrade'):
+        '''
+        Given a .bson file containing OpenEdX Forum entries, anonymize the entries,
+        and place them into a MySQL table.  
+        
+        :param bsonFileName: full path the .bson table
+        :type bsonFileName: String
+        :param mysqlDbObj: a pymysql_utils.MySQLDB object where anonymized entries are
+            to be placed. If None, a new such object is created into MySQL db 'EdxForum'
+        :type mysqlDbObj: MySQLDB
+        :param forumTableName: name of table into which anonymized Forum entries are to be placed
+        :type forumTableName: String
+        :param allUsersTable: fully qualified name of table listing all in-the-clear user names
+            of users who post to the Forum. Used to redact their names from their own posts.
+        :type allUsersTable: String
+        '''
         
         self.bsonFileName = bsonFileName
         self.forumTableName = forumTableName
+        self.allUsersTableName = allUsersTableName
         
         # If not unittest, but regular run, then mysqlDbObj is None
         if mysqlDbObj is None:
@@ -38,10 +58,7 @@ class EdxForumScrubber(object):
             self.mydb = MySQLDB(user=self.mysql_user, db='EdxForum')
         else:
             self.mydb = mysqlDbObj
-            
-        self.mongo_database_name = 'TmpForum'
-        self.collection_name = 'ForumContents'
-        
+
         self.counter=0
         
         self.userCache = {}
@@ -62,10 +79,13 @@ class EdxForumScrubber(object):
         '''
         self.populateUserCache();
 
-        # Loat bson file into Mongodb:
+        # Load bson file into Mongodb:
         self.loadForumIntoMongoDb(self.bsonFileName)
+        
+        self.mongodb = MongoDB(dbName='TmpForum', collection='ForumContents')
+        
         # Anonymize each forum record, and transfer to MySQL db:
-        self.forumMongoToRelational()
+        self.forumMongoToRelational(self.mongodb)
 
     def loadForumIntoMongoDb(self, bsonFilename):
 
@@ -88,7 +108,7 @@ class EdxForumScrubber(object):
                 stdout=outfile, stderr=outfile)
         logging.debug('Return value from mongorestore is %s' % (ret))
 
-    def forumMongoToRelational(self, collection, mysqlDbObj, mysqlTable):
+    def forumMongoToRelational(self, mongodb, mysqlDbObj, mysqlTable):
         '''
         Given a pymongo collection object in which Forum posts are stored,
         and a MySQL db object and table name, anonymize each mongo record,
@@ -108,46 +128,17 @@ class EdxForumScrubber(object):
     
         logging.info('Will start inserting from mongo collection to MySQL')
 
-        for mongoForumRec in collection.find():
-            _type=str(mongoForumRec['_type']);
-            anonymous=str(mongoForumRec['anonymous']);
-            anonymous_to_peers=str(mongoForumRec['anonymous_to_peers']);
-            at_position_list=str(mongoForumRec['at_position_list']);
-            author_id=mongoForumRec['author_id'];
-            body=mongoForumRec['body'];
-            course_id=str(mongoForumRec['course_id']);
-            created_at=mongoForumRec['created_at'];
-            votes=str(mongoForumRec['votes']); 
-            votesObject=mongoForumRec['votes']
-            count=votesObject['count']
-            down_count=votesObject['down_count']
-            up_count=votesObject['up_count']
-            up=str(votesObject['up']).replace("u","")
-            down=str(votesObject['down']).replace("u","")
-        
+        for mongoForumRec in mongodb.query({}):
+            mongoRecordObj = MongoRecord(mongoForumRec)
+
             try:
                 # Check whether 'up' can be converted to a list
-                list(up)
+                list(mongoRecordObj['up'])
             except Exception as e:
                 logging.info('Error in conversion' + `e`)
-                up='-1'
+                mongoRecordObj['up'] ='-1'
             
-            self.insert_content_record(mysqlDbObj,
-                                       mysqlTable,
-                                       _type,
-                                       anonymous,
-                                       anonymous_to_peers,
-                                       at_position_list,
-                                       author_id,
-                                       body,
-                                       course_id,
-                                       created_at,
-                                       votes,
-                                       count,
-                                       down_count,
-                                       up_count,
-                                       up,
-                                       down);
+            self.insert_content_record(mysqlDbObj, mysqlTable, mongoRecordObj);
         
     def prepDatabase(self):
         '''
@@ -207,7 +198,9 @@ class EdxForumScrubber(object):
         '''
         try:
             logging.info("Beginning to populate user cache");
-            for userRow in self.mydb.query('select user_int_id,name,screen_name,anon_screen_name from EdxPrivate.UserGrade'):
+            # Cache all in-the-clear user names of participants who
+            # might post posts:
+            for userRow in self.mydb.query('select user_int_id,name,screen_name,anon_screen_name from %s' % self.allUsersTableName):
                 userCacheEntry=[]
                 userCacheEntry.append(userRow[1]) # full name
                 userCacheEntry.append(userRow[2]) # screen_name
@@ -296,23 +289,7 @@ class EdxForumScrubber(object):
         return body
 
 
-    def insert_content_record(self,
-                              mysqlDbObj,
-                              mysqlTableName,
-                              _type,
-                              anonymous,
-                              anonymous_to_peers,
-                              at_position_list,
-                              author_id,
-                              body,
-                              course_id,
-                              created_at,
-                              votes,
-                              count,
-                              down_count,
-                              up_count,
-                              up,
-                              down):
+    def insert_content_record(self, mysqlDbObj, mysqlTableName, mongoRecordObj):
         '''
         Given all fields of one forum post record, anonymize the post,
         and insert the result into EdxForum.contents.
@@ -321,41 +298,16 @@ class EdxForumScrubber(object):
         :type mysqlDbObj: MySQLDB
         :param mysqlTableName: Name of table into which record is to be inserted. Ex: 'contents'
         :type mysqlTalbeName: String
-        :param _type:
-        :type _type:
-        :param anonymous:
-        :type anonymous:
-        :param anonymous_to_peers:
-        :type anonymous_to_peers:
-        :param at_position_list:
-        :type at_position_list:
-        :param author_id:
-        :type author_id:
-        :param body:
-        :type body:
-        :param course_id:
-        :type course_id:
-        :param created_at:
-        :type created_at:
-        :param votes:
-        :type votes:
-        :param count:
-        :type count:
-        :param down_count:
-        :type down_count:
-        :param up_count:
-        :type up_count:
-        :param up:
-        :type up:
-        :param down:
-        :type down:
+        :param mongoRecordObj: a Python object that contains the Forum record fields we export. 
+            These instances behave like dicts.
+        :type _type: MongoRecord
         '''
         #print len(self.userCache);
         #line='\t'.join(data);
         #f.write(line+'\n');    
         self.counter += 1;
         
-        body=body.encode('utf-8').strip();
+        body = mongoRecordObj['body'].encode('utf-8').strip();
     
         body = self.prune_numbers(body) 
         body = self.prune_zipcode(body)
@@ -370,7 +322,7 @@ class EdxForumScrubber(object):
             body = new_body;
         
         # Redact poster's name from the post:
-        user_info = self.userCache.get(int(author_id),['xxxx','xxxx']);
+        user_info = self.userCache.get(int(mongoRecordObj['user_int_id']),['xxxx','xxxx']);
         name = user_info[0];
         screen_name = user_info[1];
     
@@ -412,12 +364,15 @@ class EdxForumScrubber(object):
         #         print 'inserting body %s'%(body)
         #         mydb.executeParameterized('insert into EdxForum.contents(anonymous,body) values (%s,%s)',(anonymous,body))
             fullTblName = mysqlDbObj.dbName() + '.' + mysqlTableName
-            mysqlDbObj.executeParameterized("insert into %s(type,anonymous,anonymous_to_peers,at_position_list,user_int_id,body,course_display_name,created_at,votes,count,down_count,up_count,up,down) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                                           (fullTblName,_type,anonymous,anonymous_to_peers,at_position_list,author_id,body,course_id,created_at,votes,count,down_count,up_count,up,down));
+            mongoRecordObj['body'] = body
+            self.mydb.insert(fullTblName, mongoRecordObj)            
+        #    mysqlDbObj.executeParameterized("insert into %s(type,anonymous,anonymous_to_peers,at_position_list,user_int_id,body,course_display_name,created_at,votes,count,down_count,up_count,up,down) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        #                                   (fullTblName,_type,anonymous,anonymous_to_peers,at_position_list,author_id,body,course_id,created_at,votes,count,down_count,up_count,up,down));
             
         except MySQLdb.Error as e:
-            logging.info("MySql Error exiting while inserting record %d: %s auhtorid %s created_at %s " % (e.args[0],e.args[1],author_id,created_at))
-            logging.info(" values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"%(_type,anonymous,anonymous_to_peers,at_position_list,author_id,body,course_id,created_at,votes,count,down_count,up_count,up,down))
+            logging.info("MySql Error exiting while inserting record %d: %s authorid %s created_at %s " % \
+                         (e.args[0],e.args[1],mongoRecordObj.getUserNameClear(), mongoRecordObj['created_at']))
+            logging.info(" values(%s)" % str(mongoRecordObj.items()))
             sys.exit(1)
     
         if(self.counter%100 == 0):
@@ -452,8 +407,66 @@ class EdxForumScrubber(object):
                 ) ENGINE=MYISAM DEFAULT CHARSET=latin1"
                 
         self.mydb.execute(createCmd)
-                 
 
+class MongoRecord(DictMixin):
+    
+    def __init__(self, rawMongoStruct):
+        self.nameValueDict = self.makeDict(rawMongoStruct)
+        self.user_name_clear = rawMongoStruct.get('author_username')
+
+    def getUserNameClear(self):
+        return self.user_name_clear
+
+    def makeDict(self, mongoRecordStruct):
+
+        # Create a dict of the raw Mongo name/value pairs, converting
+        # types where needed. Recall: dict.get(key,[default]) returns
+        # None if no default is provided. Need an ordered dict of these
+        # column names, so that they match up with column values elsewhere:
+        mongoRecordDict = OrderedDict(
+                         {
+                           'type' : str(mongoRecordStruct.get('_type')),
+                		   'anonymous' : str(mongoRecordStruct.get('anonymous')),
+                		   'anonymous_to_peers' : str(mongoRecordStruct.get('anonymous_to_peers')),
+                		   'at_position_list' : str(mongoRecordStruct.get('at_position_list')),
+                		   'user_int_id' : mongoRecordStruct.get('author_id'), # numeric id
+                		   'body' : mongoRecordStruct.get('body'),
+                		   'course_display_name' : str(mongoRecordStruct.get('course_id')),
+                		   'created_at' : mongoRecordStruct.get('created_at'),
+                		   'votes' : str(mongoRecordStruct.get('votes')),
+                           }) 
+        
+        votesObject= mongoRecordStruct.get('votes')
+        if votesObject is not None:
+            mongoRecordDict['count'] = votesObject.get('count')
+            mongoRecordDict['down_count'] = votesObject.get('down_count')
+            mongoRecordDict['up_count'] = votesObject.get('up_count')
+            mongoRecordDict['up'] = str(votesObject.get('up'))
+            if mongoRecordDict['up'] is not None:
+                mongoRecordDict['up'] = mongoRecordDict['up'].replace("u","")
+            mongoRecordDict['down'] = str(votesObject.get('down'))
+            if mongoRecordDict['down'] is not None:
+                mongoRecordDict['down'] = mongoRecordDict['down'].replace("u","")
+        
+        mongoRecordDict['sk'] = mongoRecordStruct.get('sk')
+        mongoRecordDict['comment_thread_id'] = mongoRecordStruct.get('comment_thread_id')
+        mongoRecordDict['parent_id'] = mongoRecordStruct.get('parent_id')
+        mongoRecordDict['parent_ids'] = mongoRecordStruct.get('parent_ids')
+        
+        return mongoRecordDict
+
+    def __getitem__(self, key):
+        return self.nameValueDict[key]
+    
+    def __setitem__(self, key, value):
+        self.nameValueDict[key] = value
+    
+    def __delitem__(self, key):
+        del self.nameValueDict[key]
+    
+    def keys(self):
+        return self.nameValueDict.keys()
+        
 #        ObjectId("519461545924670200000005")
 #    ],
 """collectionObject=collection.find_one();

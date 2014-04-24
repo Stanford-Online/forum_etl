@@ -10,7 +10,8 @@ setup(
     # an out-of-band: sudo apt-get install python-dev
     setup_requires   = [],
     install_requires = ['pymysql_utils>=0.32',
-			'configparser>=3.3.0'
+			'configparser>=3.3.0',
+			'json_to_relation>=0.3'
 			],
     # tests_require    = ['mongomock>=1.0.1', 'sentinels>=0.0.6', 'nose>=1.0'],
 
