@@ -200,19 +200,21 @@ class EdxForumScrubber(object):
             logging.info("Beginning to populate user cache");
             # Cache all in-the-clear user names of participants who
             # might post posts:
+            # Result tuple positions:                  0        1        2            3
             for userRow in self.mydb.query('select user_int_id,name,screen_name,anon_screen_name from %s' % self.allUsersTableName):
                 userCacheEntry=[]
                 userCacheEntry.append(userRow[1]) # full name
                 userCacheEntry.append(userRow[2]) # screen_name
                 userCacheEntry.append(userRow[3]) # anon_screen_name
     
-                # What is l1?
-                l1=userRow[1].split()
+                # Get poster's full name as firstName/lastName array:
+                posterName=userRow[1].split()
             
-                if len(l1)>0:
-                    self.userSet.add(l1[0])
+                if len(posterName)>0:
+                    # Save the first name:
+                    self.userSet.add(posterName[0])
     
-                """for word in l1:
+                """for word in posterName:
                     if(len(word)>2 and '\\'    not in repr(word) ):
                         self.userSet.add(word)
                         if '-' in word:
@@ -222,8 +224,9 @@ class EdxForumScrubber(object):
                 """if(len(userRow[1])>0):
                     self.userSet|=set([userRow[1]])
                     self.userSet|=set(userRow[2])"""
-         
-                self.userCache[int(userRow[0])]=userCacheEntry;    
+                # Add a cache entry mapping user_int_id
+                # to the triplet full name/screen_name/anon_screen_name
+                self.userCache[int(userRow[0])] = userCacheEntry;    
             logging.info("loaded objects in usercache %d"%(len(self.userCache)))
             pickle.dump( self.userSet, open( "user.p", "wb" ) )
     
