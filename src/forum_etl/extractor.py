@@ -7,7 +7,7 @@ import logging
 import os
 import pickle
 from pymongo import MongoClient
-from mongodb import MongoDB
+from json_to_relation.mongodb import MongoDB
 import re
 import subprocess
 import sys
@@ -17,6 +17,50 @@ from pymysql_utils.pymysql_utils import MySQLDB
 
 
 class EdxForumScrubber(object):
+    '''
+    
+    Given a .bson file of OpenEdX Forum posts, load the file
+    into a MongoDB. Then pull a post at a time, anonymize, and
+    insert a selection of fields into a MySQL db. The MongoDb
+    entries look like this::
+    
+    {   
+    	"_id" : ObjectId("51b75a48f359c40a00000028"),
+    	"_type" : "Comment",
+    	"abuse_flaggers" : [ ],
+    	"anonymous" : false,
+    	"anonymous_to_peers" : false,
+    	"at_position_list" : [ ],
+    	"author_id" : "26344",
+    	"author_username" : "Minelly48",
+    	"body" : "I am Gwen.I am a nursing professor who took statistics many years ago and want to refresh my knowledge.",
+    	"comment_thread_id" : ObjectId("51b754e5f359c40a0000001d"),
+    	"course_id" : "Medicine/HRP258/Statistics_in_Medicine",
+    	"created_at" : ISODate("2013-06-11T17:11:36.831Z"),
+    	"endorsed" : false,
+    	"historical_abuse_flaggers" : [ ],
+    	"parent_ids" : [ ],
+    	"updated_at" : ISODate("2013-06-11T17:11:36.831Z"),
+    	"visible" : true,
+    	"votes" : {
+    		"count" : 2,
+    		"down" : [ ],
+    		"down_count" : 0,
+    		"point" : 2,
+    		"up" : [
+    			"40325",
+    			"20323"
+    		],
+    		"up_count" : 2
+    	},
+    	"sk" : "51b75a48f359c40a00000028"
+    }    
+    
+    Depending on parameter allowAnonScreenName in the __init__() method,
+    forum entries in the relational database will be associated with the
+    same hash that is used to anonymize other parts of the OpenEdX data.
+    
+    '''
     
     LOG_DIR = '/home/dataman/Data/EdX/NonTransformLogs'
 
@@ -28,7 +72,12 @@ class EdxForumScrubber(object):
     #emailPattern='(.*)\\s+([a-zA-Z0-9\\.]+)\\s*(\\(f.*b.*)?(@)\\s*([a-zA-Z0-9\\.\\s;]+)\\s*(\\.)\\s*(edu|com)\\s+(.*)'
     compiledEmailPattern = re.compile(emailPattern);
     
-    def __init__(self, bsonFileName, mysqlDbObj=None, forumTableName='contents', allUsersTableName='EdxPrivate.UserGrade'):
+    def __init__(self, 
+                 bsonFileName, 
+                 mysqlDbObj=None, 
+                 forumTableName='contents', 
+                 allUsersTableName='EdxPrivate.UserGrade',
+                 allowAnonScreenName=False):
         '''
         Given a .bson file containing OpenEdX Forum entries, anonymize the entries,
         and place them into a MySQL table.  
@@ -43,11 +92,16 @@ class EdxForumScrubber(object):
         :param allUsersTable: fully qualified name of table listing all in-the-clear user names
             of users who post to the Forum. Used to redact their names from their own posts.
         :type allUsersTable: String
+        :param allow_anon_screen_name: if True, then occurrences of poster's name in
+            post bodies are replaced by <redacName_<anon_screen_name>>, where anon_screen_name
+            is the hash used in other tables of the OpenEdX data.
+        :type allow_anon_screen_name: Bool 
         '''
         
         self.bsonFileName = bsonFileName
         self.forumTableName = forumTableName
         self.allUsersTableName = allUsersTableName
+        self.allowAnonScreenName = allowAnonScreenName
         
         # If not unittest, but regular run, then mysqlDbObj is None
         if mysqlDbObj is None:
@@ -164,12 +218,11 @@ class EdxForumScrubber(object):
             fullTblName = self.mydb.dbName() + '.' + self.forumTableName
             # Clear old forum data out of the table:
             try:
-                self.mydb.truncateTable(fullTblName);
+                self.mydb.dropTable(fullTblName)
+                self.createForumTable()
                 logging.debug("setting and assigning char set complete. Truncation succeeded")                
             except ValueError as e:
-                # Table doesn't exist. Create it:
-                self.createForumTable()
-                logging.debug("setting and assigning char set complete. Created %s table." % fullTblName)
+                logging.debug("Failed either to set character codes, or to create forum table %s: %s" % (fullTblName, `e`))
         
         except MySQLdb.Error,e:
             logging.info("MySql Error exiting %d: %s" % (e.args[0],e.args[1]))
@@ -199,7 +252,7 @@ class EdxForumScrubber(object):
         try:
             logging.info("Beginning to populate user cache");
             # Cache all in-the-clear user names of participants who
-            # might post posts:
+            # might post posts. We get those from the EdxPrivate.UserGrade table
             # Result tuple positions:                  0        1        2            3
             for userRow in self.mydb.query('select user_int_id,name,screen_name,anon_screen_name from %s' % self.allUsersTableName):
                 userCacheEntry=[]
@@ -211,7 +264,7 @@ class EdxForumScrubber(object):
                 posterName=userRow[1].split()
             
                 if len(posterName)>0:
-                    # Save the first name:
+                    # Collect the first name:
                     self.userSet.add(posterName[0])
     
                 """for word in posterName:
@@ -316,67 +369,60 @@ class EdxForumScrubber(object):
         body = self.prune_zipcode(body)
     
         if EdxForumScrubber.compiledEmailPattern.match(body) is not None :
-            #print 'BODY before EMAIL STRIPING %s \n'%(body);
+            #print 'BODY before EMAIL STRIPING %posterNamePart \n'%(body);
             match = re.findall(EdxForumScrubber.emailPattern,body);
             new_body = " ";
             for emailMatchHit in match:
                 new_body+=(emailMatchHit[0]+" <emailRedac> " + emailMatchHit[-1]);
-            #print 'NEW BODY AFTER EMAIL STRIPING %s \n'%(new_body);
+            #print 'NEW BODY AFTER EMAIL STRIPING %posterNamePart \n'%(new_body);
             body = new_body;
         
-        # Redact poster's name from the post:
-        user_info = self.userCache.get(int(mongoRecordObj['user_int_id']),['xxxx','xxxx']);
-        name = user_info[0];
-        screen_name = user_info[1];
-    
-        if(len(user_info) == 3):
-            anon_s = user_info[2]
-            anon_s = " "
-        else:
-            anon_s = " "
-    
+        # Redact poster'posterNamePart fullName from the post;
+        # get tuple (fullUserName, screenName, anon_screen_name) from
+        # the fullName cache (which is keyed off user_int_id):
+        (fullName, screen_name, anon_screen_name) = self.userCache.get(int(mongoRecordObj['user_int_id']), ('','',''))
+        # If not allowed to use hash of other db parts,
+        # then drop anon_screen_name:
+        if not self.allowAnonScreenName:
+            anon_screen_name='anon_screen_name_redacted'
+        
         #flag=0;
         #body=body.encode('utf-8').strip();
         try:
-            for s in name.split() :
-                if len(s) >= 3:
+            # Check whether any part of the poster's
+            # name is in the body, and redact if needed:
+            for posterNamePart in fullName.split() :
+                if len(posterNamePart) >= 3:
                     #flag=1;
-                    if s.lower() in body.lower():
-                        #print 'NEW BODY found before NAME STRIPING %s \n'%(body);
-                        pat=re.compile(s,re.IGNORECASE);
-                        anon_s=''
-                        body=pat.sub("<nameRedac_"+anon_s+">",body);
-                        #body.replace(s,"<NAME REMOVED>");
+                    if posterNamePart.lower() in body.lower():
+                        #print 'NEW BODY found before NAME STRIPING %posterNamePart \n'%(body);
+                        pat=re.compile(posterNamePart,re.IGNORECASE);
+                        body=pat.sub("<nameRedac_"+anon_screen_name+">",body);
+                        #body.replace(posterNamePart,"<NAME REMOVED>");
         except Exception as e:
-            logging.info("Error while replacing name in forum post: %s. Body:\n    %s" % (`e`, body))
-            #print 'blah %s -- %s'%(body,s)
+            logging.info("Error while redacting poster name in forum post body: %s: %s" % (body, `e`))
     
-        screenNamePattern = re.compile(screen_name,re.IGNORECASE);
-        body = screenNamePattern.sub("<nameRedac_"+anon_s+">",body);    
+        if len(screen_name) > 0:
+            screenNamePattern = re.compile(screen_name,re.IGNORECASE);
+            body = screenNamePattern.sub("<nameRedac_"+anon_screen_name+">",body);    
      
         body = self.trimnames(body)
      
         #    if ('REMOVED' in body or 'CLIPPED' in body) :
-        #         print 'NEW COMBINED BODY AFTER NAME STRIPING %s \n'%(body);
+        #         print 'NEW COMBINED BODY AFTER NAME STRIPING %posterNamePart \n'%(body);
         try:
-        #        cur.execute("insert into EdxForum.contents(type,anonymous,anonymous_to_peers,at_position_list,user_int_id,body,course_display_name,created_at,votes,count,down_count,up_count,up,down) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",(_type,anonymous,anonymous_to_peers,at_position_list,author_id,body,course_id,created_at,votes,count,down_count,up_count,up,down));
-        #        print "BOOHOO %s %s %s %s %s %s %s blah %s"%(_type,anonymous,anonymous_to_peers,at_position_list,author_id,course_id,created_at,str(body))
-        #        print "insert into EdxForum.contents(type,anonymous,anonymous_to_peers,at_position_list,user_int_id,body,course_display_name,created_at,votes,count,down_count,up_count,up,down) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"%(_type,anonymous,anonymous_to_peers,at_position_list,author_id,body,course_id,created_at,votes,count,down_count,up_count,up,down)
-        #        print "insert into EdxForum.contents(type,anonymous,anonymous_to_peers,at_position_list,user_int_id,body,course_display_name,created_at,votes,count,down_count,up_count,up,down) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"%tup
-        #         body='d'
-        #         print 'inserting body %s'%(body)
-        #         mydb.executeParameterized('insert into EdxForum.contents(anonymous,body) values (%s,%s)',(anonymous,body))
             fullTblName = mysqlDbObj.dbName() + '.' + mysqlTableName
             mongoRecordObj['body'] = body
+            mongoRecordObj['anon_screen_name'] = anon_screen_name
             self.mydb.insert(fullTblName, mongoRecordObj)            
-        #    mysqlDbObj.executeParameterized("insert into %s(type,anonymous,anonymous_to_peers,at_position_list,user_int_id,body,course_display_name,created_at,votes,count,down_count,up_count,up,down) values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        #    mysqlDbObj.executeParameterized("insert into %posterNamePart(type,anonymous,anonymous_to_peers,at_position_list,user_int_id,body,course_display_name,created_at,votes,count,down_count,up_count,up,down) values(%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart,%posterNamePart)",
         #                                   (fullTblName,_type,anonymous,anonymous_to_peers,at_position_list,author_id,body,course_id,created_at,votes,count,down_count,up_count,up,down));
             
         except MySQLdb.Error as e:
-            logging.info("MySql Error exiting while inserting record %d: %s authorid %s created_at %s " % \
-                         (e.args[0],e.args[1],mongoRecordObj.getUserNameClear(), mongoRecordObj['created_at']))
-            logging.info(" values(%s)" % str(mongoRecordObj.items()))
-            sys.exit(1)
+            logging.error("MySql error while inserting record %d: author name %s created_at %s: %s\n" % \
+                         (self.counter, mongoRecordObj.getUserNameClear(), mongoRecordObj['created_at'], `e`))
+            logging.error("   values(%s)" % str(mongoRecordObj.items()))
+            return
     
         if(self.counter%100 == 0):
             logging.info('inserted record %d'%( self.counter))
@@ -389,6 +435,7 @@ class EdxForumScrubber(object):
         CREATE privileges;
         '''
         createCmd = "CREATE TABLE `contents` ( \
+                  `anon_screen_name` varchar(40), \
                   `type` varchar(20) NOT NULL, \
                   `anonymous` varchar(10) NOT NULL, \
                   `anonymous_to_peers` varchar(10) NOT NULL, \
@@ -415,6 +462,7 @@ class MongoRecord(DictMixin):
     
     def __init__(self, rawMongoStruct):
         self.nameValueDict = self.makeDict(rawMongoStruct)
+        # Get the screen name in the clear:
         self.user_name_clear = rawMongoStruct.get('author_username')
 
     def getUserNameClear(self):
@@ -428,6 +476,7 @@ class MongoRecord(DictMixin):
         # column names, so that they match up with column values elsewhere:
         mongoRecordDict = OrderedDict(
                          {
+                           'anon_screen_name' : '',
                            'type' : str(mongoRecordStruct.get('_type')),
                 		   'anonymous' : str(mongoRecordStruct.get('anonymous')),
                 		   'anonymous_to_peers' : str(mongoRecordStruct.get('anonymous_to_peers')),
