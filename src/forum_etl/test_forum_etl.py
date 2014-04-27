@@ -25,7 +25,8 @@ class TestForumEtl(unittest.TestCase):
     #  type, anonymous, anonymous_to_peers, at_position_list, user_int_id, body, course_display_name, created_at, votes, count, down_count, up_count, up, down, comment_thread_id, parent_id, parent_ids, sk   
 
     # Correct result for relationization of tinyForum.json
-    # (in <projDir>/src/forum_etl/data)
+    # (in <projDir>/src/forum_etl/data). This result is anonymized and not relatable,
+    # i.e. poster name UIDs use integers, while other tables use hashes:
     tinyForumGoldAnonymized = \
     [
     # poster Otto van Homberg: body is clean to start with:
@@ -42,6 +43,7 @@ class TestForumEtl(unittest.TestCase):
     ('anon_screen_name_redacted','Comment', 'False', 'False', '[]', 5L, 'Body with poster screen name <nameRedac_anon_screen_name_redacted> <nameRedac_anon_screen_name_redacted> <nameRedac_anon_screen_name_redacted> embedded.', 'MITx/6.002x/2012_Fall', datetime.datetime(2013, 5, 16, 4, 32, 21), "{u'count': 0, u'point': 0, u'down_count': 0, u'up': [], u'down': [], u'up_count': 0}", 0L, 0L, 0L, '[]', '[]', '519461545924670200000001', '519461555924670200000006', "[u'519461555924670200000006']", '519461555924670200000006-519461555924670200000007')    
     ]
     
+    # Gold result for anonymization that allows relating to other tables (i.e. hashes are constant)
     tinyForumGoldRelatable = \
     [
     # poster Otto van Homberg: body is clean to start with:
@@ -57,6 +59,23 @@ class TestForumEtl(unittest.TestCase):
     # poster Otto van Homberg: body has his full name (Otto van Homberg):
     ('abc','Comment', 'False', 'False', '[]', 5L, 'Body with poster screen name <nameRedac_abc> <nameRedac_abc> <nameRedac_abc> embedded.', 'MITx/6.002x/2012_Fall', datetime.datetime(2013, 5, 16, 4, 32, 21), "{u'count': 0, u'point': 0, u'down_count': 0, u'up': [], u'down': [], u'up_count': 0}", 0L, 0L, 0L, '[]', '[]', '519461545924670200000001', '519461555924670200000006', "[u'519461555924670200000006']", '519461555924670200000006-519461555924670200000007')    
     ]
+    
+    # Gold result for non-anonymized forum:
+    tinyForumGoldClear = \
+    [
+    # poster Otto van Homberg: body is clean to start with:
+    ('otto_king','CommentThread', 'False', 'False', '[]', 5L, 'Harmless body', 'MITx/6.002x/2012_Fall', datetime.datetime(2013, 5, 16, 4, 32, 20), "{u'count': 10, u'point': -6, u'down_count': 8, u'up': [u'2', u'10'], u'down': [u'1', u'3', u'4', u'5', u'6', u'7', u'8', u'9'], u'up_count': 2}", 10L, 8L, 2L, "['2', '10']", "['1', '3', '4', '5', '6', '7', '8', '9']", None, None, None, None),
+    # poster Andreas Fritz: body has someone's email:
+    ('fritzL','Comment', 'False', 'False', '[]', 7L, ' Body with joe@comcast.com email.', 'MITx/6.002x/2012_Fall', datetime.datetime(2013, 5, 16, 4, 32, 21), "{u'count': 10, u'point': -4, u'down_count': 7, u'up': [u'6', u'8', u'10'], u'down': [u'1', u'2', u'3', u'4', u'5', u'7', u'9'], u'up_count': 3}", 10L, 7L, 3L, "['6', '8', '10']", "['1', '2', '3', '4', '5', '7', '9']", '519461545924670200000001', None, '[]', '519461555924670200000006'),
+    # poster Otto van Homberg: body has 'Otto':
+    ('otto_king','Comment', 'False', 'False', '[]', 5L, 'Body with poster name Otto embedded.', 'MITx/6.002x/2012_Fall', datetime.datetime(2013, 5, 16, 4, 32, 21), "{u'count': 0, u'point': 0, u'down_count': 0, u'up': [], u'down': [], u'up_count': 0}", 0L, 0L, 0L, '[]', '[]', '519461545924670200000001', '519461555924670200000006', "[u'519461555924670200000006']", '519461555924670200000006-519461555924670200000007'),
+    # poster Andreas Fritz: body has a phone number:
+    ('bebeW','Comment', 'False', 'False', '[]', 10L, 'Body with 650-333-4567 a phone number.', 'MITx/6.002x/2012_Fall', datetime.datetime(2013, 5, 16, 4, 32, 21), "{u'count': 0, u'point': 0, u'down_count': 0, u'up': [], u'down': [], u'up_count': 0}", 0L, 0L, 0L, '[]', '[]', '519461545924670200000001', '519461545924670200000005', "[u'519461545924670200000005']", '519461545924670200000005-519461555924670200000008'),
+    # poster Otto van Homberg: body has his screen name (otto_king):
+    ('otto_king','Comment', 'False', 'False', '[]', 5L, 'Body with poster screen name otto_king embedded.', 'MITx/6.002x/2012_Fall', datetime.datetime(2013, 5, 16, 4, 32, 21), "{u'count': 0, u'point': 0, u'down_count': 0, u'up': [], u'down': [], u'up_count': 0}", 0L, 0L, 0L, '[]', '[]', '519461545924670200000001', '519461555924670200000006', "[u'519461555924670200000006']", '519461555924670200000006-519461555924670200000007'),    
+    # poster Otto van Homberg: body has his full name (Otto van Homberg):
+    ('otto_king','Comment', 'False', 'False', '[]', 5L, 'Body with poster screen name Otto van Homberg embedded.', 'MITx/6.002x/2012_Fall', datetime.datetime(2013, 5, 16, 4, 32, 21), "{u'count': 0, u'point': 0, u'down_count': 0, u'up': [], u'down': [], u'up_count': 0}", 0L, 0L, 0L, '[]', '[]', '519461545924670200000001', '519461555924670200000006', "[u'519461555924670200000006']", '519461555924670200000006-519461555924670200000007')    
+    ]    
 
     def setUp(self):
         
@@ -76,7 +95,8 @@ class TestForumEtl(unittest.TestCase):
         # make the class understand that it's being
         # instantiated for a unit test. 
         self.forumScrubberAnonymized = EdxForumScrubber(None, mysqlDbObj=self.mysqldb, forumTableName='contents', allUsersTableName='unittest.UserGrade')
-        self.forumScrubberRelatable = EdxForumScrubber(None, mysqlDbObj=self.mysqldb, forumTableName='contents', allUsersTableName='unittest.UserGrade', allowAnonScreenName=True)
+        self.forumScrubberRelatable  = EdxForumScrubber(None, mysqlDbObj=self.mysqldb, forumTableName='contents', allUsersTableName='unittest.UserGrade', allowAnonScreenName=True)
+        self.forumScrubberClear      = EdxForumScrubber(None, mysqlDbObj=self.mysqldb, forumTableName='contents', allUsersTableName='unittest.UserGrade', anonymize=False)
 
     def tearDown(self):
         self.mysqldb.close()
@@ -92,13 +112,24 @@ class TestForumEtl(unittest.TestCase):
             
     @unittest.skipIf(not RUN_ALL_TESTS, 
                      'Uncomment this decoration if RUN_ALL_TESTS is False, and you want to run just this test.')    
-    def testNonAnonymized(self):
+    def testNonAnonymizedRelatable(self):
         self.forumScrubberRelatable.populateUserCache()
         self.forumScrubberRelatable.forumMongoToRelational(self.mongoDb, self.mysqldb, 'contents')  
         for rowNum, forumPost in enumerate(self.mysqldb.query('SELECT * FROM unittest.contents')):
             # print(str(rowNum) + ':' + str(forumPost))
             self.assertEqual(TestForumEtl.tinyForumGoldRelatable[rowNum], forumPost)
 
+    @unittest.skipIf(not RUN_ALL_TESTS, 
+                     'Uncomment this decoration if RUN_ALL_TESTS is False, and you want to run just this test.')    
+    def testNonAnonymized(self):
+        self.forumScrubberClear.populateUserCache()
+        self.forumScrubberClear.forumMongoToRelational(self.mongoDb, self.mysqldb, 'contents')  
+        for rowNum, forumPost in enumerate(self.mysqldb.query('SELECT * FROM unittest.contents')):
+            # print(str(rowNum) + ':' + str(forumPost))
+            self.assertEqual(TestForumEtl.tinyForumGoldClear[rowNum], forumPost)
+
+
+    
     def resetMongoTestDb(self):
         self.mongoDb.clearCollection()
         # Use small, known forum collection:
