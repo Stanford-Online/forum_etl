@@ -133,11 +133,11 @@ class EdxForumScrubber(object):
         '''
         self.populateUserCache();
 
-        # Load bson file into Mongodb:
-        self.loadForumIntoMongoDb(self.bsonFileName)
-        
         self.mongo_database_name = 'TmpForum'
         self.collection_name = 'ForumContents'
+
+        # Load bson file into Mongodb:
+        self.loadForumIntoMongoDb(self.bsonFileName)
         self.mongodb = MongoDB(dbName=self.mongo_database_name, collection=self.collection_name)
         
         # Anonymize each forum record, and transfer to MySQL db:
