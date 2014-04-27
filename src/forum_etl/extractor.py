@@ -147,7 +147,7 @@ class EdxForumScrubber(object):
         self.mongodb = MongoDB(dbName=self.mongo_database_name, collection=self.collection_name)
         
         # Anonymize each forum record, and transfer to MySQL db:
-        self.forumMongoToRelational(self.mongodb)
+        self.forumMongoToRelational(self.mongodb, self.mydb,'contents' )
 
     def loadForumIntoMongoDb(self, bsonFilename):
 
