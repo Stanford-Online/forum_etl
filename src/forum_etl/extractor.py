@@ -5,7 +5,6 @@ from datetime import datetime
 import getpass
 import logging
 import os
-import pickle
 from pymongo import MongoClient
 from json_to_relation.mongodb import MongoDB
 import re
@@ -110,7 +109,7 @@ class EdxForumScrubber(object):
             self.mysql_dbhost ='localhost'
             self.mysql_user = getpass.getuser() # user that started this process
             #**** NEEDED? self.mysql_db = 'EdxForum'
-            self.mydb = MySQLDB(user=self.mysql_user, db='EdxForum')
+            self.mydb = MySQLDB(user=self.mysql_user, passwd=self.mysql_passwd, db='EdxForum')
         else:
             self.mydb = mysqlDbObj
 
