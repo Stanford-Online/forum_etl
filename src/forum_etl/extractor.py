@@ -82,7 +82,8 @@ class EdxForumScrubber(object):
         Given a .bson file containing OpenEdX Forum entries, anonymize the entries,
         and place them into a MySQL table.  
         
-        :param bsonFileName: full path the .bson table
+        :param bsonFileName: full path the .bson table. Set to None if instantiating
+            for unit testing.
         :type bsonFileName: String
         :param mysqlDbObj: a pymysql_utils.MySQLDB object where anonymized entries are
             to be placed. If None, a new such object is created into MySQL db 'EdxForum'
@@ -281,7 +282,8 @@ class EdxForumScrubber(object):
                 # to the triplet full name/screen_name/anon_screen_name
                 self.userCache[int(userRow[0])] = userCacheEntry;    
             logging.info("loaded objects in usercache %d"%(len(self.userCache)))
-            pickle.dump( self.userSet, open( "user.p", "wb" ) )
+            # Save the user cache in Python pickled format:
+            #pickle.dump( self.userSet, open( "user.p", "wb" ) )
     
             #print self.userSet
         except MySQLdb.Error,e:
@@ -320,6 +322,7 @@ class EdxForumScrubber(object):
 
     def trimnames(self, body):
         '''
+        UNTESTED:
         Removes all person names known in the forum from the given
         post. We currently return the body unchanged, because we
         found that too many names match regular English words.  
@@ -395,21 +398,25 @@ class EdxForumScrubber(object):
                 if len(posterNamePart) >= 3:
                     #flag=1;
                     if posterNamePart.lower() in body.lower():
-                        #print 'NEW BODY found before NAME STRIPING %posterNamePart \n'%(body);
-                        pat=re.compile(posterNamePart,re.IGNORECASE);
+                        # Look for this loop iteration's part of
+                        # the poster's name. The '\b' ensures that
+                        # partial matches don't happen: e.g. name
+                        # "Theo" shouldn't match "Theology" 
+                        pat=re.compile(r'\b%s\b' % posterNamePart,re.IGNORECASE);
                         body=pat.sub("<nameRedac_"+anon_screen_name+">",body);
-                        #body.replace(posterNamePart,"<NAME REMOVED>");
         except Exception as e:
             logging.info("Error while redacting poster name in forum post body: %s: %s" % (body, `e`))
     
         if len(screen_name) > 0:
             screenNamePattern = re.compile(screen_name,re.IGNORECASE);
             body = screenNamePattern.sub("<nameRedac_"+anon_screen_name+">",body);    
-     
+
+        # Trim the name of anyone in the class from the 
+        # post. This method currently does nothing, b/c
+        # some of the names people give are very common
+        # English words:      
         body = self.trimnames(body)
      
-        #    if ('REMOVED' in body or 'CLIPPED' in body) :
-        #         print 'NEW COMBINED BODY AFTER NAME STRIPING %posterNamePart \n'%(body);
         try:
             fullTblName = mysqlDbObj.dbName() + '.' + mysqlTableName
             mongoRecordObj['body'] = body
