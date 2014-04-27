@@ -136,7 +136,9 @@ class EdxForumScrubber(object):
         # Load bson file into Mongodb:
         self.loadForumIntoMongoDb(self.bsonFileName)
         
-        self.mongodb = MongoDB(dbName='TmpForum', collection='ForumContents')
+        self.mongo_database_name = 'TmpForum'
+        self.collection_name = 'ForumContents'
+        self.mongodb = MongoDB(dbName=self.mongo_database_name, collection=self.collection_name)
         
         # Anonymize each forum record, and transfer to MySQL db:
         self.forumMongoToRelational(self.mongodb)
@@ -146,7 +148,7 @@ class EdxForumScrubber(object):
         mongoclient = MongoClient();
         db = mongoclient[self.mongo_database_name];
 
-        # Fix collection name
+        # Get collection object:
         collection = db[self.collection_name];
 
         # Clear out any old forum entries:
