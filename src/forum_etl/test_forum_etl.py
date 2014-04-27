@@ -66,7 +66,7 @@ class TestForumEtl(unittest.TestCase):
         
         self.mysqldb = MySQLDB(user='unittest', db='unittest')
         # Start with an empty result MySQL table for each test:
-        self.mysqldb.truncateTable('contents')
+        self.mysqldb.dropTable('contents')
         # Fill the fake UserGrade table with records of course participants:
         self.resetMySQLUserListDb()
         
