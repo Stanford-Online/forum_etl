@@ -9,14 +9,14 @@ setup(
     # Couldn't get numpy install to work without
     # an out-of-band: sudo apt-get install python-dev
     setup_requires   = [],
-    install_requires = ['pymysql_utils>=0.32',
+    install_requires = ['pymysql_utils>=0.33',
 			'configparser>=3.3.0',
 			'json_to_relation>=0.3'
 			],
-    # tests_require    = ['mongomock>=1.0.1', 'sentinels>=0.0.6', 'nose>=1.0'],
+    tests_require    = ['sentinels>=0.0.6', 'nose>=1.0'],
 
     # Unit tests; they are initiated via 'python setup.py test'
-    #test_suite       = 'nose.collector', 
+    test_suite       = 'nose.collector', 
 
     package_data = {
         # If any package contains *.txt or *.rst files, include them:
