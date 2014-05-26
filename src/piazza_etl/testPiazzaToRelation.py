@@ -132,6 +132,55 @@ class Test(unittest.TestCase):
         # Test idPiazza2Anon():
         self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', piazzaImporter.idPiazza2Anon('hr7xjaytsC8'))
 
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testGetFieldsFromIndividualJSONObjStructures(self):
+        
+        piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
+                                        '',               # MySQL pwd
+                                        'unittest',       # MySQL db
+                                        'piazza_content', # MySQL table
+                                        'data/test_PiazzaContent.json', # Test file from Piazza
+                                         mappingFile='data/test_AccountMappingInput.csv')
+
+        # Getting an anon_screen_name from one JSON object:
+        oneObj = piazzaImporter.jData[0]
+        anon_screen_name_1st = piazzaImporter.getPosterUidAnon(jsonObjArrOrObj=oneObj)
+        self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', anon_screen_name_1st)
+
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testChildOps(self):
+        
+        piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
+                                        '',               # MySQL pwd
+                                        'unittest',       # MySQL db
+                                        'piazza_content', # MySQL table
+                                        'data/test_PiazzaContent.json', # Test file from Piazza
+                                         mappingFile='data/test_AccountMappingInput.csv')
+
+        # Get children of first JSON obj:
+        children = piazzaImporter.getChildArr(piazzaImporter[0])
+        self.assertEqual(1, len(children))
+        
+        firstChild = children[0]
+        childCDate = piazzaImporter.getCreationDate(jsonObjArrOrObj=firstChild)
+        self.assertEqual('2014-01-26T18:13:50Z', childCDate)
+        
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testChildRecursion(self):
+        
+        piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
+                                        '',               # MySQL pwd
+                                        'unittest',       # MySQL db
+                                        'piazza_content', # MySQL table
+                                        'data/test_PiazzaContent.json', # Test file from Piazza
+                                         mappingFile='data/test_AccountMappingInput.csv')
+
+        # List all creation dates:
+        for jsonObj in piazzaImporter:
+            print(piazzaImporter.getCreationDate(jsonObjArrOrObj=jsonObj))
+        
+    def childGetObjDates(self, jsonObj):
+        #****if piazzaImporter.getChildArr(jsonObjArrOrObj=jsonObj)
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testPiazzaToAnonMappinig']
