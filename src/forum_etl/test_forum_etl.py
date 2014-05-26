@@ -83,7 +83,7 @@ class TestForumEtl(unittest.TestCase):
         # Fill the little MongoDB with test JSON lines
         self.resetMongoTestDb()
         
-        self.mysqldb = MySQLDB(user='unittest', db='unittest')
+        self.mysqldb = MySQLDB(mySQLUser='unittest', db='unittest')
         # Start with an empty result MySQL table for each test:
         self.mysqldb.dropTable('contents')
         # Fill the fake UserGrade table with records of course participants:

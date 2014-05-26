@@ -100,7 +100,7 @@ class EdxForumScrubber(object):
         :type mysqlDbObj: MySQLDB
         :param forumTableName: name of table into which anonymized Forum entries are to be placed
         :type forumTableName: String
-        :param allUsersTable: fully qualified name of table listing all in-the-clear user names
+        :param allUsersTable: fully qualified name of table listing all in-the-clear mySQLUser names
             of users who post to the Forum. Used to redact their names from their own posts.
         :type allUsersTable: String
         :param anonymize: If true, Forum post entries in the MySQL table will be anonymized
@@ -122,8 +122,8 @@ class EdxForumScrubber(object):
         if mysqlDbObj is None:
             self.mysql_passwd = self.getMySQLPasswd()
             self.mysql_dbhost ='localhost'
-            self.mysql_user = getpass.getuser() # user that started this process
-            self.mydb = MySQLDB(user=self.mysql_user, passwd=self.mysql_passwd, db=self.forumDbName)
+            self.mysql_user = getpass.getuser() # mySQLUser that started this process
+            self.mydb = MySQLDB(mySQLUser=self.mysql_user, passwd=self.mysql_passwd, db=self.forumDbName)
         else:
             self.mydb = mysqlDbObj
 
@@ -274,12 +274,12 @@ class EdxForumScrubber(object):
 
     def populateUserCache (self) : 
         '''
-        Populate the User Cache and preload information on user id int, screen name
+        Populate the User Cache and preload information on mySQLUser id int, screen name
         and the actual name
         '''
         try:
-            self.logInfo("Beginning to populate user cache");
-            # Cache all in-the-clear user names of participants who
+            self.logInfo("Beginning to populate mySQLUser cache");
+            # Cache all in-the-clear mySQLUser names of participants who
             # might post posts. We get those from the EdxPrivate.UserGrade table
             # Result tuple positions:                  0        1        2            3
             for userRow in self.mydb.query('select user_int_id,name,screen_name,anon_screen_name from %s' % self.allUsersTableName):
@@ -309,12 +309,12 @@ class EdxForumScrubber(object):
                 # to the triplet full name/screen_name/anon_screen_name
                 self.userCache[int(userRow[0])] = userCacheEntry;    
             self.logInfo("loaded objects in usercache %d"%(len(self.userCache)))
-            # Save the user cache in Python pickled format:
-            #pickle.dump( self.userSet, open( "user.p", "wb" ) )
+            # Save the mySQLUser cache in Python pickled format:
+            #pickle.dump( self.userSet, open( "mySQLUser.p", "wb" ) )
     
             #print self.userSet
         except MySQLdb.Error,e:
-            self.logInfo("MySql Error while user cache exiting %d: %s" % (e.args[0],e.args[1]))
+            self.logInfo("MySql Error while mySQLUser cache exiting %d: %s" % (e.args[0],e.args[1]))
             sys.exit(1)
     
     def prune_numbers(self, body):
@@ -635,7 +635,7 @@ def generateInsertQuery(collectionobject)
     cols=', '.join(collectionobject);
     vals=', '.join('?'*len(collectionobject));
     query=insertStatement%(cols,vals)
-    db=MySQLdb.connect(host="localhost",user='root',passwd='root',db='test')
+    db=MySQLdb.connect(host="localhost",mySQLUser='root',passwd='root',db='test')
     cur=db.cursor();
     cur.execute();
 """
