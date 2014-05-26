@@ -57,6 +57,7 @@ Endorsement:
 '''
 
 import argparse
+import csv
 import getpass
 import json
 import logging
@@ -74,11 +75,16 @@ class PiazzaImporter(object):
     STANDARD_CONTENT_FILE_NAME = 'class_content.json'
     STANDARD_MAPPING_FILE_NAME = 'account_mapping.csv'
     
+    # How many rows to skip at start of mapping file
+    # (skip past header):
+    MAPPING_FILE_ROW_SKIPS     = 1
+    
     MYSQL_PIAZZA_DB = 'Edx_Piazza'
     
     # Db in MySQL that holds function
     # idExt2Anon()
     CONVERT_FUNCTIONS_DB = 'EdxPrivate'
+    
 
     def __init__(self, mysqlUser, mysqlPwd, dbname, tablename, jsonFileName, mappingFile=None, loggingLevel=logging.INFO, logFile=None):
         '''
@@ -142,47 +148,79 @@ class PiazzaImporter(object):
                     raise ValueError('If providing a JSON file for the Piazza content (rather than a zip file), then a UID mapping file must be provided.')
                 self.createPiazzaId2Anon(mappingFile)            
 
-    def importJsonContentFromPiazzaZip(self, zipFileName):
+    def importJsonContentFromPiazzaZip(self, zipContentFileName):
         '''
-        Given a 
+        Given a JSON file with all of one class' Piazza forum data,
+        import the JSON, creating a messy in-memory data structure
+        that is made sense of by 'get-'methods like getSubject().
+        The file may be a stand-alone JSON file, or it can be 
+        inside a zip file, of which zipContentFileName is the name. In that
+        case the JSON within the zip file must be named class_contents.json.
         
-        :param zipFileName:
-        :type zipFileName:
+        :param zipContentFileName: name of file, or zip file with JSON encoded Piazz forum content
+        :type zipFileName: String
         '''
-        zipObj = zipfile.ZipFile(zipFileName)
-        fileNameList = zipObj.namelist()
-        if not PiazzaImporter.STANDARD_CONTENT_FILE_NAME in fileNameList:
-            raise ValueError('Zip file %s does not contain a file %s.' % (zipFileName, PiazzaImporter.STANDARD_CONTENT_FILE_NAME))
-        
-        with zipObj.open(PiazzaImporter.STANDARD_CONTENT_FILE_NAME) as jsonFd:
-            jsonArr = jsonFd.readlines()
+
+        contentFd = None
+        try:
+            if zipfile.is_zipfile(zipContentFileName):
+                zipObj = zipfile.ZipFile(zipContentFileName)
+                contentFd = zipObj.open(PiazzaImporter.STANDARD_CONTENT_FILE_NAME)
+                fileNameList = zipObj.namelist()
+                if not PiazzaImporter.STANDARD_CONTENT_FILE_NAME in fileNameList:
+                    raise ValueError('Zip file %s does not contain a file %s.' % (zipContentFileName, PiazzaImporter.STANDARD_CONTENT_FILE_NAME))
+            else:
+                contentFd = open(zipContentFileName, 'r')
+
+            jsonArr = contentFd.readlines()
             jsonStr = ''.join([line.strip() for line in jsonArr])
             self.jData = json.loads(jsonStr)
             #print('Read')
+        finally:
+            if contentFd is not None:
+                contentFd.close()
     
     def createPiazzaId2Anon(self, mappingOrZipFile):
+        '''
+        Create a dict mapping Piazza IDs to anon_screen_name
+         
+        :param mappingOrZipFile: CSV file containing a mapping triplet email, PiazzaId, strWithLTI,
+            as illustrated in class header comment. Or: a zip file that contains
+            a file named account_mapping.csv with the same mapping.
+        :type mappingOrZipFile: String
+        '''
+        
         self.piazza2Anon = {}
+        mappingFd = None
         
         # Pull all mapping lines out of the csv
         # into a memory resident array of strings:
         if zipfile.is_zipfile(mappingOrZipFile):
             zipObj = zipfile.ZipFile(mappingOrZipFile)
-            with zipObj.open(PiazzaImporter.STANDARD_MAPPING_FILE_NAME) as mappingFd:
-                mappingRows = mappingFd.readlines()
+            mappingFd = zipObj.open(PiazzaImporter.STANDARD_MAPPING_FILE_NAME)
         else:
-            with open(mappingOrZipFile, 'r') as mappingFd:
-                mappingRows = mappingFd.readlines()
-        
+            mappingFd = open(mappingOrZipFile, 'r')
+
+        csvReader = csv.reader(mappingFd)
+        # Skip past the header row(s):
+        linesToSkip = PiazzaImporter.MAPPING_FILE_ROW_SKIPS
+        while linesToSkip > 0:
+            next(csvReader)
+            linesToSkip -= 1
+                
         # Need to use a MySQL function to map from the
         # LTI (Ext) ID to anon_screen_name:
         try:
             db = None
             db = MySQLDB(user=self.mysqlUser, passwd=self.mysqlPwd,  db=PiazzaImporter.CONVERT_FUNCTIONS_DB)
             # Skipping past header line, convert one Pizza UID after another:
-            for mappingRow in mappingRows[1:]:
-                # Rows are like: 'myemail@gmail.com,hr7xjaytsC8,stanford.edu__aff1b14edf5054292a31e584b4749f42'
-                csvCols = mappingRow.split(',')
-                (email, piazzaUID, stanfordLtiUid) = csvCols[0:3]  # @UnusedVariable
+            for mappingRow in csvReader:
+                
+                # Rows are like: ['myemail@gmail.com,hr7xjaytsC8,stanford.edu__aff1b14edf5054292a31e584b4749f42'],
+                # but also like ['myemail@gmail.com,hr7xjaytsC8,"stanford.edu__88115, stanford.edu__47bf69315b7391dace7ccbc344690969"]
+
+                (email, piazzaUID, stanfordLtiUid) = mappingRow[0:3]  # @UnusedVariable
+                # Grab the last of the __-separated pieces:
                 ltiUid = stanfordLtiUid.split('__')[-1].strip()
                 for anon in db.query("SELECT idExt2Anon('%s');" % ltiUid.strip()):
                     try:
@@ -192,6 +230,8 @@ class PiazzaImporter(object):
         finally:
             if db is not None:
                 db.close()
+            if mappingFd is not None:
+                mappingFd.close()
             
     
     def getPosterAnon(self, arrIndex):
