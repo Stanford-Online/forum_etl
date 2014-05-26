@@ -224,9 +224,9 @@ class PiazzaImporter(object):
                 ltiUid = stanfordLtiUid.split('__')[-1].strip()
                 for anon in db.query("SELECT idExt2Anon('%s');" % ltiUid.strip()):
                     try:
-                        self.piazza2Anon[ltiUid] = anon[0]
+                        self.piazza2Anon[piazzaUID] = anon[0]
                     except IndexError:
-                        self.logWarn("No anon_screen_name for external (LTI) id '%s'" % ltiUid)
+                        self.logWarn("No anon_screen_name for Piazza UID '%s' (a.k.a. external (LTI) id '%s'" % (piazzaUID, ltiUid))
         finally:
             if db is not None:
                 db.close()
@@ -234,65 +234,134 @@ class PiazzaImporter(object):
                 mappingFd.close()
             
     
-    def getPosterAnon(self, arrIndex):
-        self.piazza2Anon(self.jData[arrIndex]['uid'])
+    def getPosterUidAnon(self, arrIndex, jsonObjArr=None):
+        if jsonObjArr is None:
+            jsonObjArr = self.jData
+        try:
+            return self.piazza2Anon.get(jsonObjArr[arrIndex].get('id',None), None)
+        except (TypeError, IndexError) :
+            return None
           
-    def getSubject(self, arrIndex):
-        return self.jData[arrIndex]['history'][0]['subject']
+    def getSubject(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('history', None)[0].get('subject', None)
+        except (TypeError, IndexError, KeyError):
+            return None
 
-    def getContent(self, arrIndex):
-        return self.jData[arrIndex]['history'][0]['content']
+    def getContent(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex]['history'][0].get('content', None)
+        except (TypeError, IndexError, KeyError):
+            return None
 
-    def getTags(self, arrIndex):
-        return self.jData[arrIndex]['tags']
+    def getTags(self, arrIndex, jsonObjArr=None):
+        '''
+        Return post's tags as a Python array of strings.
+        
+        :param arrIndex:
+        :type arrIndex:
+        '''
+        try:
+            return self.jData[arrIndex].get('tags', None)
+        except IndexError:
+            return None
     
-    def getPiazzaId(self, arrIndex):
-        return self.jData[arrIndex]['id']
+    def getPiazzaId(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('id', None)
+        except IndexError:
+            return None
+          
+    def getStatus(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('status', None)
+        except IndexError:
+            return None
     
-    def getStatus(self, arrIndex):
-        return self.jData[arrIndex]['status']
+    def getNoAnswerFollowup(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('no_answer_followup', None)
+        except IndexError:
+            return None       
     
-    def getNoAnswerFollowup(self, arrIndex):
-        return self.jData[arrIndex]['no_answer_followup']
+    def getCreationDate(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('created', None)
+        except IndexError:
+            return None
     
-    def getCreationDate(self, arrIndex):
-        return self.jData[arrIndex]['created']
+    def getPostType(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('type', None)
+        except IndexError:
+            return None
     
-    def getPostType(self, arrIndex):
-        return self.jData[arrIndex]['type']
-    
-    def getTagGoodAnons(self, arrIndex):
+    def getTagGoodAnons(self, arrIndex, jsonObjArr=None):
+        '''
+        Returns a Python array of anon_screen_name
+        who tagged post as good (tag_good_arr')
+        
+        :param arrIndex:
+        :type arrIndex:
+        '''
         anons = []
-        for piazzaId in self.jData[arrIndex]['tag_good_arr']:
-            anons.append(self.piazza2Anon(piazzaId))
-        return ','.join(anons)
+        try:
+            for piazzaId in self.jData[arrIndex].get('tag_good_arr', None):
+                anons.append(self.idPiazza2Anon(piazzaId))
+        except (IndexError, TypeError):
+            pass
+        return anons
     
-    def getTagEndorseAnons(self, arrIndex):
+    def getTagEndorseAnons(self, arrIndex, jsonObjArr=None):
         anons = []
-        for piazzaId in self.jData[arrIndex]['tag_endorse_arr']:
-            anons.append(self.piazza2Anon(piazzaId))
-        return ','.join(anons)
+        try:
+            for piazzaId in self.jData[arrIndex].get('tag_endorse_arr', None):
+                anons.append(self.idPiazza2Anon(piazzaId))
+        except (IndexError, TypeError):
+            pass
+        return anons
     
-    def getNumUpVotes(self, arrIndex):
-        return self.jData[arrIndex]['no_upvotes']
+    def getNumUpVotes(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('no_upvotes', None)
+        except IndexError:
+            return None
+            
+    def getNumAnswers(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('no_answer', None)
+        except IndexError:
+            return None        
     
-    def getNumAnswers(self, arrIndex):
-        return self.jData[arrIndex]['no_answers']
+    def getIsAnonPost(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('anon', 'no')
+        except IndexError:
+            return None
+            
+    def getBucketName(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('bucket_name', None)
+        except IndexError:
+            return None
     
-    def getIsAnonPost(self, arrIndex):
-        return self.jData[arrIndex]['anon']
+    def getUpdated(self, arrIndex, jsonObjArr=None):
+        try:
+            return self.jData[arrIndex].get('updated', None)
+        except IndexError:
+            return None
     
-    def getBucketName(self, arrIndex):
-        return self.jData[arrIndex]['bucket_name']
-    
-    def getUpdated(self, arrIndex):
-        return self.jData[arrIndex]['updated']
-    
-    def getFolders(self, arrIndex):
-        return ','.join(self.jData[arrIndex]['folders'])
+    def getFolders(self, arrIndex, jsonObjArr=None):
+        try:
+            return ','.join(self.jData[arrIndex].get('folders', None))
+        except IndexError:
+            return None
     
     def idPiazza2Anon(self, piazzaId):
-        pass
+        try:
+            return self.piazza2Anon[piazzaId]
+        except KeyError:
+            return None
             
 
     def setupLogging(self, loggingLevel, logFile):
