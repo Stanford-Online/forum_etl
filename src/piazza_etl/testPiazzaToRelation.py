@@ -9,7 +9,7 @@ from unittest.case import skipIf
 from piazza_etl.piazza_to_relation import PiazzaImporter
 
 
-DO_ALL = True
+DO_ALL = False
 
 class Test(unittest.TestCase):
 
@@ -45,7 +45,7 @@ class Test(unittest.TestCase):
         #print(piazzaImporter.piazza2Anon)
 
 
-    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    #******@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testContentLoadingToMemory(self):
         
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
@@ -181,6 +181,7 @@ class Test(unittest.TestCase):
         
     def childGetObjDates(self, jsonObj):
         #****if piazzaImporter.getChildArr(jsonObjArrOrObj=jsonObj)
+        pass
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testPiazzaToAnonMappinig']

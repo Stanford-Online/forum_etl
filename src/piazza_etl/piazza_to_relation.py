@@ -56,9 +56,12 @@ Endorsement:
 
 '''
 
+from UserDict import DictMixin
 import argparse
+import base64
 import csv
 import getpass
+import hashlib
 import json
 import logging
 import os
@@ -68,10 +71,13 @@ import zipfile
 from pymysql_utils.pymysql_utils import MySQLDB
 
 
-class PiazzaImporter(list):
+class PiazzaImporter(object):
     '''
     classdocs
     '''
+
+    singletonPiazzaImporter = None
+    
     STANDARD_CONTENT_FILE_NAME = 'class_content.json'
     STANDARD_MAPPING_FILE_NAME = 'account_mapping.csv'
     
@@ -84,7 +90,12 @@ class PiazzaImporter(list):
     # Db in MySQL that holds function
     # idExt2Anon()
     CONVERT_FUNCTIONS_DB = 'EdxPrivate'
-    
+  
+    # Cache of materialized Piazza Post objects.
+    # Keys will be computed from the objs themselves,
+    # using md5 with urlsafe_64encode:
+    postObjs = {}
+
 
     def __init__(self, mysqlUser, mysqlPwd, dbname, tablename, jsonFileName, mappingFile=None, loggingLevel=logging.INFO, logFile=None):
         '''
@@ -111,6 +122,10 @@ class PiazzaImporter(list):
         :param logFile: file to send log into. If None: log to console
         :type String 
         '''
+
+        if PiazzaImporter.singletonPiazzaImporter is not None:
+            return PiazzaImporter.singletonPiazzaImporter
+        
         self.mysqlUser = mysqlUser
         self.mysqlPwd = mysqlPwd
         self.dbname = dbname
@@ -120,7 +135,7 @@ class PiazzaImporter(list):
         
         self.logger = None
         self.setupLogging(loggingLevel, logFile)
-        
+                
         # Import JSON from Piazza content file, 
         # plus a mapping dict PiazzaIDs-->anon_screen_name IDs:
         if zipfile.is_zipfile(jsonFileName):
@@ -437,13 +452,52 @@ class PiazzaImporter(list):
 
     # ----------------------------------------  Make  PiazzaImport Act Like a Read-Only List of JSON dicts ------------------------------------------
     
-    def __getitem__(self, offset):
-        return list.__getitem__(self.jData, offset)
+    def __getitem__(self, offsetOrObjId):
+        
+        if type(offsetOrObjId) == int:
+            # Behave like a list.
+            # offsetOrObjId is an offset into the original JSON list:
+            objDict = list.__getitem__(self.jData, offsetOrObjId)
+            return self.findOrCreatePostObj(objDict)
+        
+        elif type(offsetOrObjId) == dict:
+            # Behave like a PiazzaPost instance factory:
+            return self.findOrCreatePostObj(offsetOrObjId)
+        
+        else: # offsetOrObjId is the obj ID of an already materialized obj
+            # Behave like a dict:
+            return PiazzaImporter.postObjs[offsetOrObjId]
+
+    def findOrCreatePostObj(self, jsonDict):
+        objId = PiazzaImporter.makeHashFromJsonDict(jsonDict)
+        try:
+            return PiazzaImporter.getObjFromOid(objId)
+        except KeyError:
+            obj = PiazzaPost.createInstance(jsonDict, objId)
+            PiazzaImporter.postObjs[objId] = obj
+            return obj
+            
+    @classmethod
+    def getObjFromOid(cls, oid):
+        '''
+        Return a previously materialized post obj, given
+        an oid. KeyError if obj does not exist.
+        
+        :param cls:
+        :type cls:
+        :param oid:
+        :type oid:
+        '''
+        return cls.postObjs[oid]
     
     def __iter__(self):
         return self.jData.__iter__()
     
     # ----------------------------------------  Utilities ------------------------------------------
+
+    @classmethod
+    def makeHashFromJsonDict(cls, jsonDict):
+        return base64.urlsafe_b64encode(hashlib.md5(str(jsonDict)).digest())
     
     def idPiazza2Anon(self, piazzaId):
         try:
@@ -495,11 +549,40 @@ class PiazzaImporter(list):
         self.logger.error(msg)
             
     
-    
-    
-    
-    
+class PiazzaPost(DictMixin):    
+    '''
+    Wraps one dict that represents a Piazza Post
+    '''
 
+    @classmethod
+    def createInstance(cls, jsonDict, oid):
+        resObj = PiazzaPost(jsonDict)
+        resObj['oid'] = oid
+        return resObj
+    
+    def __init__(self, jsonDict):
+        self.nameValueDict = jsonDict
+        # Get the screen name in the clear:
+
+    def __getitem__(self, key):
+        jsonValue = self.nameValueDict[key]
+        if type(jsonValue) == list:
+            jsonValueArr = []
+            for jsonValueEl in jsonValue:
+                jsonValueArr.append(PiazzaImporter.singletonPiazzaImporter[jsonValueEl]) 
+            return jsonValueArr
+        else:
+            return jsonValue
+    
+    def __setitem__(self, key, value):
+        self.nameValueDict[key] = value
+    
+    def __delitem__(self, key):
+        del self.nameValueDict[key]
+    
+    def keys(self):
+        return self.nameValueDict.keys()
+    
 if __name__ == '__main__':
     
     # -------------- Manage Input Parameters ---------------
