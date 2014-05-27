@@ -56,9 +56,42 @@ class Test(unittest.TestCase):
                                          mappingFile='data/test_AccountMappingInput.csv')
 
 
-        # Getting an anon_screen_name from first JSON post object in JSON array of posts:
-        anon_screen_name_1st = piazzaImporter.getPosterUidAnon(0)
-        self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', anon_screen_name_1st)
+        firstObj = piazzaImporter[0]
+        self.assertEqual('wu_ug_FC_rbo0Lhca1YOUA==', firstObj['oid'])
+        secondObj = piazzaImporter[1]
+        self.assertEqual('z0df3VaEGTBxAWQrfuv3hw==', secondObj['oid'])
+        self.assertEqual('D7ObrIJu2xZS-vCNSH9RqQ==', firstObj['children'][0]['oid'])
+
+        anon_screen_name = firstObj['anon_screen_name']
+        self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', anon_screen_name)
+        
+        
+        #   --- Getting Subject --- 
+        
+        # Getting subject from a PiazzaPost instance:
+        subject = firstObj['subject']
+        self.assertEqual('wireshark shows same packet sent twice', subject)
+        
+        # Getting subject from a PiazzaPost OID:
+        subject = piazzaImporter.getSubject(firstObj)
+        self.assertEqual('wireshark shows same packet sent twice', subject)
+        
+        # Getting subject from a PiazzaPost JSON object:
+        subject = piazzaImporter.getSubject(firstObj.nameValueDict)
+        self.assertEqual('wireshark shows same packet sent twice', subject)
+        
+        #   --- Getting Content --- 
+
+        # Getting content from a PiazzaPost instance:
+        content = piazzaImporter.getContent(secondObj)
+        self.assertEqual('<p>Just wanted to pop in and say hello just as class starts.', content)
+        
+        # Getting content from a PiazzaPost OID:
+        content = piazzaImporter.getContent(secondObj['oid'])
+        self.assertEqual('<p>Just wanted to pop in and say hello just as class starts.', content)
+        
+        
+        
         
         # Getting the subject of the first post:
         subject = piazzaImporter.getSubject(0)

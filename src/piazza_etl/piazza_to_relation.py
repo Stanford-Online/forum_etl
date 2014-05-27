@@ -126,6 +126,8 @@ class PiazzaImporter(object):
         if PiazzaImporter.singletonPiazzaImporter is not None:
             return PiazzaImporter.singletonPiazzaImporter
         
+        PiazzaImporter.singletonPiazzaImporter = self
+        
         self.mysqlUser = mysqlUser
         self.mysqlPwd = mysqlPwd
         self.dbname = dbname
@@ -262,35 +264,89 @@ class PiazzaImporter(object):
         return jsonObj.get('children', None)
                 
     
-    def getPosterUidAnon(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
+    def getPosterUidAnon(self, oidOrDict):
+        '''
+        Return a anon_screen_name type UID, given
+        either a PiazzaPost OID, or a dict that
+        represents a raw JSON object. 
+        
+        If parameter is an OID, simply return
+        that object's anon_screen_name attribute.
+        Else look for field name 'id', get its 
+        (Piazza UID type) value, and look up the
+        equivalent anon_screen_name. If that mapping
+        is unknown, return None. 
+        
+        :param oidOrDict: a PiazzaPost object id, or a JSON object dict
+        :type oidOrDict: {PiazzaPost | dict}
+        '''
+        
+        if type(oidOrDict) == basestring:
+            try:
+                oid = oidOrDict
+                return PiazzaImporter[oid]['anon_screen_name']
+            except KeyError:
+                raise ValueError('Value %s is not a PiazzaPost instance identifier.' % oidOrDict)
+
+        # Parameter is a dict, i.e. a JSON object.
+        # Get its (Piazza) 'id' attribute, and look
+        # up the equivalent anon_screen_name: 
         try:
-            return self.piazza2Anon.get(jsonObjArrOrObj[arrIndex].get('id',None), None)
-        except (TypeError, IndexError) :
+            theDict = oidOrDict
+            return self.piazza2Anon.get(theDict.get('id',None))
+        except KeyError:
             return None
           
-    def getSubject(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('history', None)[0].get('subject', None)
-        except (TypeError, IndexError, KeyError):
-            return None
+    def getSubject(self, oidOrDictOrPiazzaPostObj):
 
-    def getContent(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
+        if isinstance(oidOrDictOrPiazzaPostObj, basestring):
+            oid = oidOrDictOrPiazzaPostObj
+            try:
+                piazzaObj = PiazzaImporter.singletonPiazzaImporter[oid]
+            except KeyError:
+                raise KeyError("No PiazzaPost object with OID %s is known." % piazzaObj)
+            
+        elif type(oidOrDictOrPiazzaPostObj) == dict or isinstance(oidOrDictOrPiazzaPostObj, PiazzaPost): 
+            piazzaObj = oidOrDictOrPiazzaPostObj
+            
         try:
-            return jsonObjArrOrObj[arrIndex]['history'][0].get('content', None)
-        except (TypeError, IndexError, KeyError):
-            return None
+            historyArr = piazzaObj['history']
+        except (KeyError):
+            raise KeyError("Dict parameter (%s) contains no 'history' array." % str(piazzaObj))
+        try:
+            return historyArr[0]['subject']
+        except KeyError:
+            raise ValueError("History array's first dict element contains no 'subject' entry (%s)." % str(historyArr))
+        except IndexError:
+            raise ValueError("Dict parameter 'history' in an empty array (%s)." % str(piazzaObj))
+            
+
+    def getContent(self, oidOrDictOrPiazzaPostObj):
+
+        if isinstance(oidOrDictOrPiazzaPostObj, basestring):
+            oid = oidOrDictOrPiazzaPostObj
+            try:
+                piazzaObj = PiazzaImporter.singletonPiazzaImporter[oid]
+            except KeyError:
+                raise KeyError("No PiazzaPost object with OID %s is known." % piazzaObj)
+            
+        elif type(oidOrDictOrPiazzaPostObj) == dict or isinstance(oidOrDictOrPiazzaPostObj, PiazzaPost): 
+            piazzaObj = oidOrDictOrPiazzaPostObj
+            
+        try:
+            historyArr = piazzaObj['history']
+        except (KeyError):
+            raise KeyError("Dict parameter (%s) contains no 'history' array." % str(piazzaObj))
+        try:
+            return historyArr[0]['content']
+        except KeyError:
+            raise ValueError("History array's first dict element contains no 'subject' entry (%s)." % str(historyArr))
+        except IndexError:
+            raise ValueError("Dict parameter 'history' in an empty array (%s)." % str(piazzaObj))
+            
+
+    #*********** Continue testing here
+
 
     def getTags(self, jsonObjArrOrObj, arrIndex=0):
         '''
@@ -473,7 +529,8 @@ class PiazzaImporter(object):
         try:
             return PiazzaImporter.getObjFromOid(objId)
         except KeyError:
-            obj = PiazzaPost.createInstance(jsonDict, objId)
+            anon_screen_name_uid = self.getPosterUidAnon(jsonDict)
+            obj = PiazzaPost.createInstance(jsonDict, objId, anon_screen_name_uid)
             PiazzaImporter.postObjs[objId] = obj
             return obj
             
@@ -549,24 +606,38 @@ class PiazzaImporter(object):
         self.logger.error(msg)
             
     
-class PiazzaPost(DictMixin):    
+#*****class PiazzaPost(DictMixin):    
+class PiazzaPost(object):    
     '''
     Wraps one dict that represents a Piazza Post
     '''
 
     @classmethod
-    def createInstance(cls, jsonDict, oid):
+    def createInstance(cls, jsonDict, oid, anon_screen_name_uid):
         resObj = PiazzaPost(jsonDict)
         resObj['oid'] = oid
+        resObj['anon_screen_name'] = anon_screen_name_uid
         return resObj
     
     def __init__(self, jsonDict):
         self.nameValueDict = jsonDict
         # Get the screen name in the clear:
 
+    def __repr__(self):
+        return '<PiazzaPost oid=%s>' % self.nameValueDict['oid']
+
     def __getitem__(self, key):
+        
+        if key == 'subject':
+            return PiazzaImporter.singletonPiazzaImporter.getSubject(self)
+        
+        # Allow 'body' instead of content for compatibility
+        # with OpenEdX forum:
+        if key == 'content' or key == 'body':
+            return PiazzaImporter.singletonPiazzaImporter.getContent(self)
+        
         jsonValue = self.nameValueDict[key]
-        if type(jsonValue) == list:
+        if key == 'children':
             jsonValueArr = []
             for jsonValueEl in jsonValue:
                 jsonValueArr.append(PiazzaImporter.singletonPiazzaImporter[jsonValueEl]) 
