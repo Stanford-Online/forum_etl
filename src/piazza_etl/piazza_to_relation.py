@@ -56,7 +56,7 @@ Endorsement:
 
 '''
 
-from UserDict import DictMixin
+#from UserDict import DictMixin
 import argparse
 import base64
 import csv
@@ -239,7 +239,7 @@ class PiazzaImporter(object):
                 (email, piazzaUID, stanfordLtiUid) = mappingRow[0:3]  # @UnusedVariable
                 # Grab the last of the __-separated pieces:
                 ltiUid = stanfordLtiUid.split('__')[-1].strip()
-                for anon in db.query("SELECT idExt2Anon('%s');" % ltiUid.strip()):
+                for anon in db.query("SELECT EdxPrivate.idExt2Anon('%s');" % ltiUid.strip()):
                     try:
                         self.piazza2Anon[piazzaUID] = anon[0]
                     except IndexError:
@@ -348,166 +348,188 @@ class PiazzaImporter(object):
     #*********** Continue testing here
 
 
-    def getTags(self, jsonObjArrOrObj, arrIndex=0):
-        '''
-        Return post's tags as a Python array of strings.
-        
-        :param arrIndex:
-        :type arrIndex:
-        '''
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('tags', None)
-        except IndexError:
-            return None
+#     def getTags(self, jsonObjArrOrObj, arrIndex=0):
+#         '''
+#         Return post's tags as a Python array of strings.
+#         
+#         :param arrIndex:
+#         :type arrIndex:
+#         '''
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('tags', None)
+#         except IndexError:
+#             return None
+#     
+#     def getPiazzaId(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('id', None)
+#         except IndexError:
+#             return None
+#           
+#     def getStatus(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('status', None)
+#         except IndexError:
+#             return None
+#     
+#     def getNoAnswerFollowup(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('no_answer_followup', None)
+#         except IndexError:
+#             return None       
+#     
+#     def getCreationDate(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('created', None)
+#         except IndexError:
+#             return None
+#     
+#     def getPostType(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('type', None)
+#         except IndexError:
+#             return None
     
-    def getPiazzaId(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('id', None)
-        except IndexError:
-            return None
-          
-    def getStatus(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('status', None)
-        except IndexError:
-            return None
-    
-    def getNoAnswerFollowup(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('no_answer_followup', None)
-        except IndexError:
-            return None       
-    
-    def getCreationDate(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('created', None)
-        except IndexError:
-            return None
-    
-    def getPostType(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('type', None)
-        except IndexError:
-            return None
-    
-    def getTagGoodAnons(self, jsonObjArrOrObj, arrIndex=0):
-        '''
-        Returns a Python array of anon_screen_name
-        who tagged post as good (tag_good_arr')
-        
-        :param arrIndex:
-        :type arrIndex:
-        '''
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        anons = []
-        try:
-            for piazzaId in jsonObjArrOrObj[arrIndex].get('tag_good_arr', None):
-                anons.append(self.idPiazza2Anon(piazzaId))
-        except (IndexError, TypeError):
-            pass
-        return anons
-    
-    def getTagEndorseAnons(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        anons = []
-        try:
-            for piazzaId in jsonObjArrOrObj[arrIndex].get('tag_endorse_arr', None):
-                anons.append(self.idPiazza2Anon(piazzaId))
-        except (IndexError, TypeError):
-            pass
-        return anons
-    
-    def getNumUpVotes(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('no_upvotes', None)
-        except IndexError:
-            return None
+    def getTagGoodAnons(self, oidOrDictOrPiazzaPostObj):
+        if isinstance(oidOrDictOrPiazzaPostObj, basestring):
+            oid = oidOrDictOrPiazzaPostObj
+            try:
+                piazzaObj = PiazzaImporter.singletonPiazzaImporter[oid]
+            except KeyError:
+                raise KeyError("No PiazzaPost object with OID %s is known." % piazzaObj)
             
-    def getNumAnswers(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        try:
-            return jsonObjArrOrObj[arrIndex].get('no_answer', None)
-        except IndexError:
-            return None        
-    
-    def getIsAnonPost(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('anon', 'no')
-        except IndexError:
-            return None
+        elif type(oidOrDictOrPiazzaPostObj) == dict or isinstance(oidOrDictOrPiazzaPostObj, PiazzaPost): 
+            piazzaObj = oidOrDictOrPiazzaPostObj
+
+        anons = []
+
+        for piazzaId in piazzaObj.get('tag_good_arr', None):
+            if piazzaId is None:
+                continue
+            anons.append(self.idPiazza2Anon(piazzaId))
+
+        return anons
             
-    def getBucketName(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('bucket_name', None)
-        except IndexError:
-            return None
     
-    def getUpdated(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return jsonObjArrOrObj[arrIndex].get('updated', None)
-        except IndexError:
-            return None
+    def getTagEndorseAnons(self, oidOrDictOrPiazzaPostObj):
+        if isinstance(oidOrDictOrPiazzaPostObj, basestring):
+            oid = oidOrDictOrPiazzaPostObj
+            try:
+                piazzaObj = PiazzaImporter.singletonPiazzaImporter[oid]
+            except KeyError:
+                raise KeyError("No PiazzaPost object with OID %s is known." % piazzaObj)
+            
+        elif type(oidOrDictOrPiazzaPostObj) == dict or isinstance(oidOrDictOrPiazzaPostObj, PiazzaPost): 
+            piazzaObj = oidOrDictOrPiazzaPostObj
+
+        anons = []
+
+        for piazzaId in piazzaObj.get('tag_endorse_arr', None):
+            if piazzaId is None:
+                continue
+            anons.append(self.idPiazza2Anon(piazzaId))
+
+        return anons
+            
     
-    def getFolders(self, jsonObjArrOrObj, arrIndex=0):
-        if jsonObjArrOrObj is None:
-            jsonObjArrOrObj = self.jData
-        if not type(jsonObjArrOrObj) == list:
-            jsonObjArrOrObj = [jsonObjArrOrObj]
-        try:
-            return ','.join(jsonObjArrOrObj[arrIndex].get('folders', None))
-        except IndexError:
-            return None
+#     def getNumUpVotes(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('no_upvotes', None)
+#         except IndexError:
+#             return None
+#             
+#     def getNumAnswers(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('no_answer', None)
+#         except IndexError:
+#             return None        
+#     
+#     def getIsAnonPost(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('anon', 'no')
+#         except IndexError:
+#             return None
+#             
+#     def getBucketName(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('bucket_name', None)
+#         except IndexError:
+#             return None
+#     
+#     def getUpdated(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return jsonObjArrOrObj[arrIndex].get('updated', None)
+#         except IndexError:
+#             return None
+#     
+#     def getFolders(self, jsonObjArrOrObj, arrIndex=0):
+#         if jsonObjArrOrObj is None:
+#             jsonObjArrOrObj = self.jData
+#         if not type(jsonObjArrOrObj) == list:
+#             jsonObjArrOrObj = [jsonObjArrOrObj]
+#         try:
+#             return ','.join(jsonObjArrOrObj[arrIndex].get('folders', None))
+#         except IndexError:
+#             return None
     
 
-    # ----------------------------------------  Make  PiazzaImport Act Like a Read-Only List of JSON dicts ------------------------------------------
+    # ----------------------------------------  Make  PiazzaImport Act Like a Read-Only List of Dicts ------------------------------------------
     
+    # Want ability for instance of PiazzaImporter to act as a list
+    # of PiazzaPost instances. Those instances correspond to the top
+    # level JSON array of JSON object structures. 
+    #
+    # Also want ability to retrieve a PiazzaPost obj from an
+    # instance of PiazzaImporter by providing the OID of one of
+    # the PiazzaPost objects. We provide that facility via a
+    # dict behavior.
+    #
+    # Finally: want ability to act as iterator over a list
+    # of objects
+    
+    # Dict functionality
     def __getitem__(self, offsetOrObjId):
         
         if type(offsetOrObjId) == int:
@@ -523,6 +545,22 @@ class PiazzaImporter(object):
         else: # offsetOrObjId is the obj ID of an already materialized obj
             # Behave like a dict:
             return PiazzaImporter.postObjs[offsetOrObjId]
+
+    # The iterator functionality:
+    class PiazzaImporterIterator(object):
+        def __init__(self, piazzaImporterObj):
+            self.piazzaImporterObj = piazzaImporterObj
+            self.currObjIndex = -1
+            
+        def next(self):
+            self.currObjIndex += 1
+            try:
+                return self.piazzaImporterObj[self.currObjIndex]
+            except IndexError:
+                raise StopIteration
+            
+    def  __iter__(self):
+        return PiazzaImporter.PiazzaImporterIterator(self)
 
     def findOrCreatePostObj(self, jsonDict):
         objId = PiazzaImporter.makeHashFromJsonDict(jsonDict)
@@ -546,10 +584,7 @@ class PiazzaImporter(object):
         :type oid:
         '''
         return cls.postObjs[oid]
-    
-    def __iter__(self):
-        return self.jData.__iter__()
-    
+        
     # ----------------------------------------  Utilities ------------------------------------------
 
     @classmethod
@@ -633,8 +668,17 @@ class PiazzaPost(object):
         
         # Allow 'body' instead of content for compatibility
         # with OpenEdX forum:
-        if key == 'content' or key == 'body':
+        elif key == 'content' or key == 'body':
             return PiazzaImporter.singletonPiazzaImporter.getContent(self)
+        
+        elif key == 'tag_good_arr' or key == 'good_tags':
+            return PiazzaImporter.singletonPiazzaImporter.getTagGoodAnons(self)
+
+        elif key == 'tag_endorse_arr' or key == 'endorse_tags':
+            return PiazzaImporter.singletonPiazzaImporter.getTagEndorseAnons(self)
+
+        elif key == 'create_date' or key == 'creation_date':
+            key = 'created' 
         
         jsonValue = self.nameValueDict[key]
         if key == 'children':
@@ -653,6 +697,9 @@ class PiazzaPost(object):
     
     def keys(self):
         return self.nameValueDict.keys()
+    
+    def get(self, key, default=None):
+        return self.nameValueDict.get(key, default)
     
 if __name__ == '__main__':
     
