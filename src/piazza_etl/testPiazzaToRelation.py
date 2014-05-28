@@ -9,7 +9,7 @@ from unittest.case import skipIf
 from piazza_etl.piazza_to_relation import PiazzaImporter, PiazzaPost
 
 
-DO_ALL = False
+DO_ALL = True
 
 class Test(unittest.TestCase):
 
@@ -19,19 +19,28 @@ class Test(unittest.TestCase):
     ####@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaPostSingletonMechanism(self):
 
+        # Two instantiations with same data 
+        # should only create one instance:
         aPost = PiazzaPost('oneUser', jsonDict={'foo' : 10, 'bar' : 20})
         print(aPost)
         bPost = PiazzaPost('oneUser', jsonDict={'foo' : 10, 'bar' : 20})
         print(bPost)
         self.assertEqual(aPost, bPost)
         
+        # Making any change in the JSON object should
+        # create a new instance:
         cPost = PiazzaPost('oneUser', jsonDict={'foo' : 20, 'bar' : 20})
         print(cPost)
         self.assertNotEqual(aPost, cPost)
 
+        # Search object by OID: 
         dPost = PiazzaPost('oneUser', oid=bPost['oid'])
         print(cPost)
         self.assertEqual(bPost, dPost)
+        
+        # Use minimal number of args:
+        ePost = PiazzaPost(aPost['oid'])
+        self.assertEqual(ePost, bPost)
     
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaToAnonMapping(self):

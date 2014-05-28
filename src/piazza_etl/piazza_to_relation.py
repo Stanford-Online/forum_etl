@@ -654,7 +654,7 @@ class PiazzaPostMetaclass(type):
         if not hasattr(self, 'piazzePostInstances'):
             self.piazzaPostInstances = {}
 
-    def __call__(self, anon_screen_name_uid, jsonDict=None, oid=None):
+    def __call__(self, anon_screen_name_uid=None, jsonDict=None, oid=None):
         '''
         Invoked whenever a PiazzaPost instance is created.
         Checks whether object with given OID or JSON object
@@ -669,10 +669,17 @@ class PiazzaPostMetaclass(type):
         :param oid: 
         :type oid:
         '''
+        # Use OID to try and find the corresponding 
+        # existing instance. If caller did not provide
+        # the OID, or an OID that doesn't exist, the
+        # following fails harmlessly:
         try:
             return self.piazzaPostInstances[oid]
         except KeyError:
             pass
+        
+        # No (valid) OID provided. Got to have
+        # a JSON object dict then:
         if not type(jsonDict) == dict:
             raise ValueError("Must pass either an OID or a JSON dictionary; oid was None, jsonDict was %s" % str(jsonDict)) 
         
@@ -680,7 +687,10 @@ class PiazzaPostMetaclass(type):
         oid = PiazzaImporter.makeHashFromJsonDict(jsonDict)
 
         # Try again to find this OID among the already
-        # created instances:
+        # created instances: caller may make multiple
+        # PiazzaPost instantiations with the same JSON
+        # object; we'll just find the respective object
+        # and return it:
         try:
             return self.piazzaPostInstances[oid]
         except KeyError:
@@ -688,7 +698,7 @@ class PiazzaPostMetaclass(type):
 
         # Really don't have this instance yet:
         
-        # Call the class' init method:
+        # Call the PiazzaPost class' init method:
         resObj = super(PiazzaPostMetaclass, self).__call__()
 
         # The JSON dict will become an instance level
