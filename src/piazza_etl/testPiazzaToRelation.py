@@ -6,7 +6,7 @@ Created on May 25, 2014
 import unittest
 from unittest.case import skipIf
 
-from piazza_etl.piazza_to_relation import PiazzaImporter
+from piazza_etl.piazza_to_relation import PiazzaImporter, PiazzaPost
 
 
 DO_ALL = False
@@ -15,6 +15,23 @@ class Test(unittest.TestCase):
 
     def setUp(self):
         PiazzaImporter.CONVERT_FUNCTIONS_DB = 'unittest'
+
+    ####@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testPiazzaPostSingletonMechanism(self):
+
+        aPost = PiazzaPost('oneUser', jsonDict={'foo' : 10, 'bar' : 20})
+        print(aPost)
+        bPost = PiazzaPost('oneUser', jsonDict={'foo' : 10, 'bar' : 20})
+        print(bPost)
+        self.assertEqual(aPost, bPost)
+        
+        cPost = PiazzaPost('oneUser', jsonDict={'foo' : 20, 'bar' : 20})
+        print(cPost)
+        self.assertNotEqual(aPost, cPost)
+
+        dPost = PiazzaPost('oneUser', oid=bPost['oid'])
+        print(cPost)
+        self.assertEqual(bPost, dPost)
     
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaToAnonMapping(self):
@@ -242,7 +259,7 @@ class Test(unittest.TestCase):
         secondObj = piazzaImporter[1]
         self.assertEqual(secondObj, piazzaImporter[secondObj['oid']])
        
-    #******@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaImporterIterator(self):
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
                                         '',               # MySQL pwd

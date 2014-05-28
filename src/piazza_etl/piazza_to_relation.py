@@ -640,23 +640,96 @@ class PiazzaImporter(object):
     def logErr(self, msg):
         self.logger.error(msg)
             
+class PiazzaPostMetaclass(type):
+    '''
+    Metaclass that governs creation of PiazzaPost instances.
+    Imposes a singleton pattern, with existing objects held
+    in a class level dict called piazzaPostInstances. Keys
+    are OIDs, which are computed from the JSON dict that is
+    passed into the __call__() method. 
+    '''
     
-#*****class PiazzaPost(DictMixin):    
+    def __init__(self, className, bases, namespace):
+        super(PiazzaPostMetaclass, self).__init__(className, bases, dict)
+        if not hasattr(self, 'piazzePostInstances'):
+            self.piazzaPostInstances = {}
+
+    def __call__(self, anon_screen_name_uid, jsonDict=None, oid=None):
+        '''
+        Invoked whenever a PiazzaPost instance is created.
+        Checks whether object with given OID or JSON object
+        already exists; if so, returns it. Else creates instance,
+        initializes its jsonDict instance variable, and
+        adds oid and anon_screen_name to the JSON dict.
+        
+        :param anon_screen_name_uid: new object's anonymized user name
+        :type anon_screen_name_uid: String
+        :param jsonDict: JSON object (not needed if given an oid****
+        :type jsonDict: dict
+        :param oid: 
+        :type oid:
+        '''
+        try:
+            return self.piazzaPostInstances[oid]
+        except KeyError:
+            pass
+        if not type(jsonDict) == dict:
+            raise ValueError("Must pass either an OID or a JSON dictionary; oid was None, jsonDict was %s" % str(jsonDict)) 
+        
+        # Compute OID from the JSON dict:
+        oid = PiazzaImporter.makeHashFromJsonDict(jsonDict)
+
+        # Try again to find this OID among the already
+        # created instances:
+        try:
+            return self.piazzaPostInstances[oid]
+        except KeyError:
+            pass
+
+        # Really don't have this instance yet:
+        
+        # Call the class' init method:
+        resObj = super(PiazzaPostMetaclass, self).__call__()
+
+        # The JSON dict will become an instance level
+        # variable called nameValueDict. Add OID and
+        # anon_screen_name to that dict:
+
+        jsonDict['oid'] = oid
+        jsonDict['anon_screen_name'] = anon_screen_name_uid
+        
+        # Set instance variable nameValueDict: 
+        resObj.nameValueDict = jsonDict
+        
+        # Remember this object by oid at the
+        # class level (i.e. in a class var):
+        self.piazzaPostInstances[oid] = resObj
+
+        return resObj
+
+    def __str__(self):
+        return self.__name__
+    
+    
 class PiazzaPost(object):    
     '''
     Wraps one dict that represents a Piazza Post
+    cashes objects.
     '''
+    # Make PiazzaPost instantiation work as
+    # defined in PiazzaPostMetaclass. I.e.
+    # return object if already exists. Only
+    # otherwise create a new one (Singleton pattern).
+    # Also: compute and initialize oid, store it in
+    # instance level new object's JSON dict.
+    # It is named nameValueDict, and is an instance
+    # level member.
+    # Init anon_screen_name in the JSON dict.
+    __metaclass__ = PiazzaPostMetaclass
 
-    @classmethod
-    def createInstance(cls, jsonDict, oid, anon_screen_name_uid):
-        resObj = PiazzaPost(jsonDict)
-        resObj['oid'] = oid
-        resObj['anon_screen_name'] = anon_screen_name_uid
-        return resObj
     
-    def __init__(self, jsonDict):
-        self.nameValueDict = jsonDict
-        # Get the screen name in the clear:
+    def __init__(self):
+        print('init called')
 
     def __repr__(self):
         return '<PiazzaPost oid=%s>' % self.nameValueDict['oid']
