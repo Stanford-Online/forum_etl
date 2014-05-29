@@ -71,12 +71,29 @@ import zipfile
 from pymysql_utils.pymysql_utils import MySQLDB
 
 
+class PiazzaImporterMetaclass(type):
+    
+    def __init__(self, className, bases, namespace):
+
+        super(PiazzaImporterMetaclass, self).__init__(className, bases, namespace)
+        if not hasattr(self, 'piazzaImporterInstance'):
+            self.singletonPiazzaImporter = None
+    
+    def __call__(self, *args, **kwdargs):
+
+        if self.singletonPiazzaImporter is not None:
+            return self.singletonPiazzaImporter
+                # Call the PiazzaPost class' init method:
+
+        # Call PiazzaImporter's __init__() method:
+        return super(PiazzaImporterMetaclass, self).__call__(*args, **kwdargs)
+
+
 class PiazzaImporter(object):
     '''
     classdocs
     '''
-
-    singletonPiazzaImporter = None
+    __metaclass__ = PiazzaImporterMetaclass
     
     STANDARD_CONTENT_FILE_NAME = 'class_content.json'
     STANDARD_MAPPING_FILE_NAME = 'account_mapping.csv'
@@ -91,12 +108,6 @@ class PiazzaImporter(object):
     # idExt2Anon()
     CONVERT_FUNCTIONS_DB = 'EdxPrivate'
   
-    # Cache of materialized Piazza Post objects.
-    # Keys will be computed from the objs themselves,
-    # using md5 with urlsafe_64encode:
-    postObjs = {}
-
-
     def __init__(self, mysqlUser, mysqlPwd, dbname, tablename, jsonFileName, mappingFile=None, loggingLevel=logging.INFO, logFile=None):
         '''
         Create an instance that will hold a dict between
@@ -122,11 +133,6 @@ class PiazzaImporter(object):
         :param logFile: file to send log into. If None: log to console
         :type String 
         '''
-
-        if PiazzaImporter.singletonPiazzaImporter is not None:
-            return PiazzaImporter.singletonPiazzaImporter
-        
-        PiazzaImporter.singletonPiazzaImporter = self
         
         self.mysqlUser = mysqlUser
         self.mysqlPwd = mysqlPwd
@@ -164,6 +170,8 @@ class PiazzaImporter(object):
                 if mappingFile is None:
                     raise ValueError('If providing a JSON file for the Piazza content (rather than a zip file), then a UID mapping file must be provided.')
                 self.createPiazzaId2Anon(mappingFile)            
+        return None
+
 
     def importJsonContentFromPiazzaZip(self, zipContentFileName):
         '''
@@ -531,6 +539,18 @@ class PiazzaImporter(object):
     
     # Dict functionality
     def __getitem__(self, offsetOrObjId):
+        '''
+        Given a list index or a JSON object dictionary,
+        or a PiazzaPost oid, return a PiazzaPost instance
+        if possible. List index identifies one of the 
+        top level JSON dicts in the JSON array. 
+        
+        :param offsetOrObjId: list index, JSON dict, or oid that describe desired PiazzaPost instance
+        :type offsetOrObjId: {int | dict | String}
+        :return desired PiazzaPost instance, if found
+        :rtype PiazzaPos
+        :raise KeyError
+        '''
         
         if type(offsetOrObjId) == int:
             # Behave like a list.
@@ -543,9 +563,10 @@ class PiazzaImporter(object):
             return self.findOrCreatePostObj(offsetOrObjId)
         
         else: # offsetOrObjId is the obj ID of an already materialized obj
-            # Behave like a dict:
-            return PiazzaImporter.postObjs[offsetOrObjId]
-
+            # Behave like a dict: return the obj with that ID,
+            # or raise KeyError:
+            return PiazzaPost.getPiazzaPostObj(offsetOrObjId)
+            
     # The iterator functionality:
     class PiazzaImporterIterator(object):
         def __init__(self, piazzaImporterObj):
@@ -563,28 +584,25 @@ class PiazzaImporter(object):
         return PiazzaImporter.PiazzaImporterIterator(self)
 
     def findOrCreatePostObj(self, jsonDict):
-        objId = PiazzaImporter.makeHashFromJsonDict(jsonDict)
-        try:
-            return PiazzaImporter.getObjFromOid(objId)
-        except KeyError:
-            anon_screen_name_uid = self.getPosterUidAnon(jsonDict)
-            obj = PiazzaPost.createInstance(jsonDict, objId, anon_screen_name_uid)
-            PiazzaImporter.postObjs[objId] = obj
-            return obj
+        
+        # Find existing instance for this JSON obj (dict),
+        # or have a new one made:
+
+        piazzaPostObj = PiazzaPost(jsonDict=jsonDict)
+
+        # If anon_screen_name of the object is None,
+        # the instance is new, and we have to 
+        # find the anon_screen_name value. Else
+        # we are done:
+        
+        if piazzaPostObj['anon_screen_name'] is not None:
+            return piazzaPostObj
+        
+        anon_screen_name_uid = self.getPosterUidAnon(jsonDict)
+        piazzaPostObj['anon_screen_name'] = anon_screen_name_uid
+        return piazzaPostObj
             
-    @classmethod
-    def getObjFromOid(cls, oid):
-        '''
-        Return a previously materialized post obj, given
-        an oid. KeyError if obj does not exist.
-        
-        :param cls:
-        :type cls:
-        :param oid:
-        :type oid:
-        '''
-        return cls.postObjs[oid]
-        
+      
     # ----------------------------------------  Utilities ------------------------------------------
 
     @classmethod
@@ -739,7 +757,31 @@ class PiazzaPost(object):
 
     
     def __init__(self):
-        print('init called')
+        '''
+        Note: because PiazzaPostMetaclass is this class'
+        metaclass, instantiation of PiazzaPost will 
+        call the metaclass' __class__() method, which
+        will in turn call this __init__() method. 
+        So to add any additional args, that __call__()
+        method must also take those args and do the 
+        call to this __init__() method with the args. 
+        '''
+        #print('init called')
+        pass
+
+    @classmethod
+    def getPiazzaPostObj(cls, oid):
+        '''
+        Return instance with given oid if such an
+        instance exists. Else raise KeyError.
+        
+        :param oid: object identifier to check
+        :type oid: String
+        :return the previously existing PiazzaPost object
+        :rtype PiazzaPost
+        :raise KeyError if instance with given oid does not exist
+        '''
+        return PiazzaPost.piazzaPostInstances[oid]
 
     def __repr__(self):
         return '<PiazzaPost oid=%s>' % self.nameValueDict['oid']
