@@ -14,7 +14,7 @@ from unittest.case import skipIf
 from piazza_etl.piazza_to_relation import PiazzaImporter, PiazzaPost
 
 
-DO_ALL = True
+DO_ALL = False
 
 class Test(unittest.TestCase):
 
@@ -327,7 +327,7 @@ class Test(unittest.TestCase):
                 self.assertEqual(secondObj, obj)
 
         
-    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    #****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testChildRecursion(self):
         
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
@@ -340,21 +340,22 @@ class Test(unittest.TestCase):
         # List all creation dates:
         createDates = []
         for piazzaObj in piazzaImporter:
-            thisObjCreateDates = self.childGetObjDates(piazzaObj)
-            if thisObjCreateDates is None:
-                continue
-            createDates.extend(thisObjCreateDates, createDates)
-        print(createDates)
+            createDates.extend(self.childGetObjDates(piazzaObj))
+        #print(createDates)
+        groundTruth = [u'2014-01-26T10:08:18Z', 
+                       u'2014-01-26T18:13:50Z', 
+                       u'2014-01-22T01:25:00Z', 
+                       u'2014-01-22T06:49:14Z', 
+                       u'2014-01-28T02:30:03Z', 
+                       u'2014-01-28T02:30:03Z']
+        self.assertEqual(groundTruth, createDates)
         
-    def childGetObjDates(self, piazzaPostObj, createDates):
-        createDates.append(piazzaPostObj['created'])
+    def childGetObjDates(self, piazzaPostObj):
+        createDates = [piazzaPostObj['created']]
         children = piazzaPostObj['children']
         for child in children:
-            childCreateDates = self.childGetObjDates(child)
-            if childCreateDates is None:
-                continue
-            createDates.extend(childCreateDates)
-
+            createDates.extend(self.childGetObjDates(child))
+        return createDates
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testPiazzaToAnonMappinig']
