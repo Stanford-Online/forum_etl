@@ -751,7 +751,8 @@ class PiazzaPostMetaclass(type):
         Checks whether object with given OID or JSON object
         already exists; if so, returns it. Else creates instance,
         initializes its jsonDict instance variable, and
-        adds oid and anon_screen_name to the JSON dict.
+        adds oid and anon_screen_name as separate instance 
+        variables.
         
         :param anon_screen_name_uid: new object's anonymized user name
         :type anon_screen_name_uid: String
@@ -851,6 +852,8 @@ class PiazzaPost(object):
         # to the Piazza id in the JSON dict:
         anonId = PiazzaImporter.resolveLTIToAnon(piazzaId)
         self.anon_screen_name = anonId
+        
+        # If there is a change log
 
     @classmethod
     def getPiazzaPostObj(cls, oid):
@@ -870,6 +873,16 @@ class PiazzaPost(object):
         return '<PiazzaPost oid=%s>' % self.oid
 
     def __getitem__(self, key):
+        '''
+        Called when a PiazzaPost instance is treated
+        like a dictionary: myPost['anon']
+        
+        :param key: the instance variable name
+        :type key: String
+        :return: the instance variable's value
+        :rtype: <any>
+        :raise KeyError: when given instance variable does not exist.
+        '''
 
         # Oid and anon_screen_name are stored
         # in an instance variable (not in the 
@@ -938,6 +951,33 @@ class PiazzaPost(object):
     
     def get(self, key, default=None):
         return self.nameValueDict.get(key, default)
+
+class ForumComputer(object):
+    
+    def __init__(self):
+        pass
+    
+    def prettyPrint(self, postObj, *fieldNames):
+        pass
+    
+    def getAllFieldsFromX(self, piazzaPostObj, fieldName):
+        '''
+        Given a PiazzaPost instance, and a field name,
+        return an array of the instance and, recursively,
+        all its children as an array.
+        
+        :param piazzaPostObj:
+        :type piazzaPostObj:
+        :param fieldName:
+        :type fieldName:
+        '''
+        fieldValues = [piazzaPostObj[fieldName]]
+        children = piazzaPostObj['children']
+        for child in children:
+            fieldValues.extend(self.getAllFieldsFromX(child, fieldName))
+        return fieldValues
+    
+
     
 if __name__ == '__main__':
     

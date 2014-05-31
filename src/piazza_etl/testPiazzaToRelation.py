@@ -14,7 +14,7 @@ from unittest.case import skipIf
 from piazza_etl.piazza_to_relation import PiazzaImporter, PiazzaPost
 
 
-DO_ALL = False
+DO_ALL = True
 
 class Test(unittest.TestCase):
 
@@ -327,7 +327,7 @@ class Test(unittest.TestCase):
                 self.assertEqual(secondObj, obj)
 
         
-    #****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testChildRecursion(self):
         
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
@@ -356,6 +356,39 @@ class Test(unittest.TestCase):
         for child in children:
             createDates.extend(self.childGetObjDates(child))
         return createDates
+
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testGetAllFieldsX(self):
+        piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
+                                        '',               # MySQL pwd
+                                        'unittest',       # MySQL db
+                                        'piazza_content', # MySQL table
+                                        'data/test_PiazzaContent.json', # Test file from Piazza
+                                         mappingFile='data/test_AccountMappingInput.csv')
+        types = []
+        for piazzaObj in piazzaImporter:
+            types.extend(self.getAllFieldsFromX(piazzaObj, 'type'))
+        #print(types)
+        gold = [u'question', u'i_answer', u'note', u'followup', u'feedback', u'feedback']
+        self.assertEqual(gold, types)
+
+    def getAllFieldsFromX(self, piazzaPostObj, fieldName):
+        '''
+        Given a PiazzaPost instance, and a field name,
+        return an array of the instance and, recursively,
+        all its children as an array.
+        
+        :param piazzaPostObj:
+        :type piazzaPostObj:
+        :param fieldName:
+        :type fieldName:
+        '''
+        fieldValues = [piazzaPostObj[fieldName]]
+        children = piazzaPostObj['children']
+        for child in children:
+            fieldValues.extend(self.getAllFieldsFromX(child, fieldName))
+        return fieldValues
+
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testPiazzaToAnonMappinig']
