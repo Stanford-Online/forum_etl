@@ -50,6 +50,28 @@ Example entry in CSV file that maps Piazza internal IDs to Learning Tool Interop
 	alvaro.tolosa@hotmail.com,hc19qkoyc9C,"stanford.edu__88115, stanford.edu__47bf69315b7391dace7ccbc344690969"
 	omn143@live.com,h8ndx888SKN,"stanford.edu__6808, stanford.edu__fad3f083830511c86cb2ac72d61b7c08"
 
+Some leniency in column names:
+    # Some columns mean the same in the OpenEdX
+    # forum and the Piazza forum. Allow use of
+    # both names here. Key: alternate name,
+    # value: Piazza-native name: 
+    SCHEMA_NAME_EQUIVALENCES = {'body' : 'content',
+                                'creation_date' : 'create_date',
+                                'created_at' : 'create_date', 
+                                'good_tags' : 'tag_good_arr',
+                                'endorse_tags' : 'tag_endorse_arr'
+                                }
+    
+    
+
+    SCHEMA_NAME_EQUIVALENCES = {'body' : 'content',
+                                'creation_date' : 'create_date',
+                                'created_at' : 'create_date', 
+                                'good_tags' : 'tag_good_arr',
+                                'endorse_tags' : 'tag_endorse_arr'
+                                }
+
+
 
 Endorsement:
    anon_screen_name, endorsement_type, endorsement_post
@@ -86,7 +108,9 @@ class PiazzaImporterMetaclass(type):
                 # Call the PiazzaPost class' init method:
 
         # Call PiazzaImporter's __init__() method:
-        return super(PiazzaImporterMetaclass, self).__call__(*args, **kwdargs)
+        newPiazzaImporterObj = super(PiazzaImporterMetaclass, self).__call__(*args, **kwdargs)
+        self.singletonPiazzaImporter = newPiazzaImporterObj
+        return newPiazzaImporterObj
 
 
 class PiazzaImporter(object):
@@ -106,7 +130,12 @@ class PiazzaImporter(object):
     
     # Db in MySQL that holds function
     # idExt2Anon()
-    CONVERT_FUNCTIONS_DB = 'EdxPrivate'
+    CONVERT_FUNCTIONS_DB = 'Edx'
+    
+    # Dict to hold map between Piazza 'id' field, and anon:
+    piazza2Anon = {}
+
+    logger = None
   
     def __init__(self, mysqlUser, mysqlPwd, dbname, tablename, jsonFileName, mappingFile=None, loggingLevel=logging.INFO, logFile=None):
         '''
@@ -141,7 +170,6 @@ class PiazzaImporter(object):
         self.jsonFileName = jsonFileName
         self.mappingFile = mappingFile
         
-        self.logger = None
         self.setupLogging(loggingLevel, logFile)
                 
         # Import JSON from Piazza content file, 
@@ -215,7 +243,6 @@ class PiazzaImporter(object):
         :type mappingOrZipFile: String
         '''
         
-        self.piazza2Anon = {}
         mappingFd = None
         
         # Pull all mapping lines out of the csv
@@ -247,17 +274,69 @@ class PiazzaImporter(object):
                 (email, piazzaUID, stanfordLtiUid) = mappingRow[0:3]  # @UnusedVariable
                 # Grab the last of the __-separated pieces:
                 ltiUid = stanfordLtiUid.split('__')[-1].strip()
-                for anon in db.query("SELECT EdxPrivate.idExt2Anon('%s');" % ltiUid.strip()):
+                if len(ltiUid) == 0:
+                    PiazzaImporter.logWarn('Piazza user id %s has an empty LTI mapping in mapping file.' % ltiUid)
+                    continue
+                for anon in db.query("SELECT %s.idExt2Anon('%s');" % (PiazzaImporter.CONVERT_FUNCTIONS_DB,ltiUid.strip())):
                     try:
-                        self.piazza2Anon[piazzaUID] = anon[0]
+                        PiazzaImporter.piazza2Anon[piazzaUID] = anon[0]
                     except IndexError:
-                        self.logWarn("No anon_screen_name for Piazza UID '%s' (a.k.a. external (LTI) id '%s'" % (piazzaUID, ltiUid))
+                        PiazzaImporter.logWarn("No anon_screen_name for Piazza UID '%s' (a.k.a. external (LTI) id '%s'" % (piazzaUID, ltiUid))
         finally:
             if db is not None:
                 db.close()
             if mappingFd is not None:
                 mappingFd.close()
     
+    @classmethod
+    def resolveLTIToAnon(cls, piazzaId):
+        '''
+        Given a Piazza ID, return a corresponding
+        anon_screen_name. Piazza provides a mapping
+        file from their IDs to LTI ids, which method
+        createPiazzaId2Anon() will have materialized
+        into a dict mapping Piazza ID to anon_screen_name
+        of users in other tables in the database.
+        
+        When a piazzaId is not found in the dict, b/c
+        the Piazza company has not provided the mapping,
+        an anon_screen_name is created that is clearly recognizable
+        as an unmappable Piazza ID, but which is unique,
+        and the same for multiple calls to this method
+        with the same piazzaId.
+        
+        Note: for this method to work, first call createPiazzaId2Anon(). 
+        
+        :param cls:
+        :type cls:
+        :param piazzaId:
+        :type piazzaId:
+        '''
+        try:
+            return cls.piazza2Anon[piazzaId]
+        except KeyError:
+            madeUpAnon = cls.makeUnknowAnonScreenName(piazzaId)
+            PiazzaImporter.logWarn("Piazza id with missing LTI mapping; assigning %s" % madeUpAnon)
+            return madeUpAnon 
+    
+    @classmethod
+    def makeUnknowAnonScreenName(cls, piazzaId):
+        '''
+        Given a Piazza user id, return a recognizable,
+        but unique anon_user_id. Given the same
+        piazzaId, the return value will always be
+        the same. 
+        
+        Used when Piazza company's account name mapping
+        does not contain a mapping for one of their 
+        own IDs 
+        
+        :param cls:
+        :type cls:
+        :param piazzaId:
+        :type piazzaId:
+        '''
+        return 'unknown_piazza_mapping_' + piazzaId        
     
     # ----------------------------------------  Getters ------------------------------------------
     
@@ -588,20 +667,10 @@ class PiazzaImporter(object):
         # Find existing instance for this JSON obj (dict),
         # or have a new one made:
 
-        piazzaPostObj = PiazzaPost(jsonDict=jsonDict)
+        piazzaPostObj = PiazzaPost(jsonDict)
 
-        # If anon_screen_name of the object is None,
-        # the instance is new, and we have to 
-        # find the anon_screen_name value. Else
-        # we are done:
-        
-        if piazzaPostObj['anon_screen_name'] is not None:
-            return piazzaPostObj
-        
-        anon_screen_name_uid = self.getPosterUidAnon(jsonDict)
-        piazzaPostObj['anon_screen_name'] = anon_screen_name_uid
         return piazzaPostObj
-            
+        
       
     # ----------------------------------------  Utilities ------------------------------------------
 
@@ -627,7 +696,7 @@ class PiazzaImporter(object):
         '''
         # Set up logging:
         #self.logger = logging.getLogger('pullTackLogs')
-        self.logger = logging.getLogger(os.path.basename(__file__))
+        PiazzaImporter.logger = logging.getLogger(os.path.basename(__file__))
 
         # Create file handler if requested:
         if logFile is not None:
@@ -643,20 +712,24 @@ class PiazzaImporter(object):
         handler.setFormatter(formatter)
         
         # Add the handler to the logger
-        self.logger.addHandler(handler)
-        self.logger.setLevel(loggingLevel)
+        PiazzaImporter.logger.addHandler(handler)
+        PiazzaImporter.logger.setLevel(loggingLevel)
          
-    def logDebug(self, msg):
-        self.logger.debug(msg)
+    @classmethod
+    def logDebug(cls, msg):
+        PiazzaImporter.logger.debug(msg)
 
-    def logWarn(self, msg):
-        self.logger.warn(msg)
+    @classmethod
+    def logWarn(cls, msg):
+        PiazzaImporter.logger.warn(msg)
 
-    def logInfo(self, msg):
-        self.logger.info(msg)
+    @classmethod
+    def logInfo(cls, msg):
+        PiazzaImporter.logger.info(msg)
 
-    def logErr(self, msg):
-        self.logger.error(msg)
+    @classmethod
+    def logErr(cls, msg):
+        PiazzaImporter.logger.error(msg)
             
 class PiazzaPostMetaclass(type):
     '''
@@ -672,7 +745,7 @@ class PiazzaPostMetaclass(type):
         if not hasattr(self, 'piazzePostInstances'):
             self.piazzaPostInstances = {}
 
-    def __call__(self, anon_screen_name_uid=None, jsonDict=None, oid=None):
+    def __call__(self, objIdOrJsonDict):
         '''
         Invoked whenever a PiazzaPost instance is created.
         Checks whether object with given OID or JSON object
@@ -687,24 +760,30 @@ class PiazzaPostMetaclass(type):
         :param oid: 
         :type oid:
         '''
-        # Use OID to try and find the corresponding 
-        # existing instance. If caller did not provide
-        # the OID, or an OID that doesn't exist, the
-        # following fails harmlessly:
-        try:
-            return self.piazzaPostInstances[oid]
-        except KeyError:
-            pass
+        # For readability: figure out which
+        # type of parm was passed in, and assign
+        # to appropriate var:
+        if type(objIdOrJsonDict) == dict:
+            jsonDict = objIdOrJsonDict
+            oid = None
+        elif isinstance(objIdOrJsonDict, basestring):
+            oid = objIdOrJsonDict
+            jsonDict = None
+        else:
+            raise ValueError("Must pass either an OID or a JSON dictionary; oid was None, jsonDict was %s" % str(objIdOrJsonDict))
         
-        # No (valid) OID provided. Got to have
-        # a JSON object dict then:
-        if not type(jsonDict) == dict:
-            raise ValueError("Must pass either an OID or a JSON dictionary; oid was None, jsonDict was %s" % str(jsonDict)) 
+        # If caller provided an oid, try to find it.
+        # NameError if doesn't exist:
+        if oid is not None:
+            try:
+                return self.piazzaPostInstances[oid]
+            except KeyError:
+                raise NameError("Object with oid '%s' does not exist." % oid)
         
-        # Compute OID from the JSON dict:
+        # No OID provided. Compute OID from the JSON dict;
         oid = PiazzaImporter.makeHashFromJsonDict(jsonDict)
 
-        # Try again to find this OID among the already
+        # Try to find this OID among the already
         # created instances: caller may make multiple
         # PiazzaPost instantiations with the same JSON
         # object; we'll just find the respective object
@@ -717,17 +796,13 @@ class PiazzaPostMetaclass(type):
         # Really don't have this instance yet:
         
         # Call the PiazzaPost class' init method:
-        resObj = super(PiazzaPostMetaclass, self).__call__()
+        resObj = super(PiazzaPostMetaclass, self).__call__(jsonDict)
 
         # The JSON dict will become an instance level
         # variable called nameValueDict. Add OID and
         # anon_screen_name to that dict:
 
-        jsonDict['oid'] = oid
-        jsonDict['anon_screen_name'] = anon_screen_name_uid
-        
-        # Set instance variable nameValueDict: 
-        resObj.nameValueDict = jsonDict
+        resObj['oid'] = oid
         
         # Remember this object by oid at the
         # class level (i.e. in a class var):
@@ -744,6 +819,7 @@ class PiazzaPost(object):
     Wraps one dict that represents a Piazza Post
     cashes objects.
     '''
+    
     # Make PiazzaPost instantiation work as
     # defined in PiazzaPostMetaclass. I.e.
     # return object if already exists. Only
@@ -756,7 +832,7 @@ class PiazzaPost(object):
     __metaclass__ = PiazzaPostMetaclass
 
     
-    def __init__(self):
+    def __init__(self, jsonDict):
         '''
         Note: because PiazzaPostMetaclass is this class'
         metaclass, instantiation of PiazzaPost will 
@@ -766,8 +842,15 @@ class PiazzaPost(object):
         method must also take those args and do the 
         call to this __init__() method with the args. 
         '''
-        #print('init called')
-        pass
+        self.nameValueDict = jsonDict
+        # Add anon_screen_name to this instance's attribute:
+        piazzaId = jsonDict.get('id', None)
+        if piazzaId is None:
+            raise ValueError("The JSON dict that is to be a PiazzaPost object does not have the required 'id' attribute (%s)" % str(jsonDict))
+        # Find the anon_screen_name that corresponds
+        # to the Piazza id in the JSON dict:
+        anonId = PiazzaImporter.resolveLTIToAnon(piazzaId)
+        self.anon_screen_name = anonId
 
     @classmethod
     def getPiazzaPostObj(cls, oid):
@@ -784,26 +867,42 @@ class PiazzaPost(object):
         return PiazzaPost.piazzaPostInstances[oid]
 
     def __repr__(self):
-        return '<PiazzaPost oid=%s>' % self.nameValueDict['oid']
+        return '<PiazzaPost oid=%s>' % self.oid
 
     def __getitem__(self, key):
-        
+
+        # Oid and anon_screen_name are stored
+        # in an instance variable (not in the 
+        # JSON dict we keep in each instance:
+        if key == 'oid':
+            return self.oid
+        if key == 'anon_screen_name':
+            return self.anon_screen_name
+
+        # Some values are buried in the lower levels
+        # of the JSON dict; pick those out, and call
+        # the proper retrieval methods:         
         if key == 'subject':
             return PiazzaImporter.singletonPiazzaImporter.getSubject(self)
         
         # Allow 'body' instead of content for compatibility
         # with OpenEdX forum:
-        elif key == 'content' or key == 'body':
+        if key == 'content' or key == 'body':
             return PiazzaImporter.singletonPiazzaImporter.getContent(self)
         
-        elif key == 'tag_good_arr' or key == 'good_tags':
+        if key == 'tag_good_arr' or key == 'good_tags':
             return PiazzaImporter.singletonPiazzaImporter.getTagGoodAnons(self)
 
-        elif key == 'tag_endorse_arr' or key == 'endorse_tags':
+        if key == 'tag_endorse_arr' or key == 'endorse_tags':
             return PiazzaImporter.singletonPiazzaImporter.getTagEndorseAnons(self)
 
-        elif key == 'create_date' or key == 'creation_date':
+        # Allow create_date and creation_date instead of 'created':
+        if key == 'create_date' or key == 'creation_date':
             key = 'created' 
+        
+        # Allow 'piazza_id' in place of 'id':
+        if key == 'piazza_id':
+            key = 'id'
         
         jsonValue = self.nameValueDict[key]
         if key == 'children':
@@ -815,13 +914,27 @@ class PiazzaPost(object):
             return jsonValue
     
     def __setitem__(self, key, value):
+        
+        # Anon_screen_name and oid
+        # are kept in instance variables.
+        # All others are kept in nameValueDict 
+        if key == 'anon_screen_name':
+            self.anon_screen_name = value
+            return
+        elif key == 'oid':
+            self.oid = value
+            return
         self.nameValueDict[key] = value
     
     def __delitem__(self, key):
+        if key == 'anon_screen_name' or key == 'oid':
+            raise ValueError('Cannot delete anon_screen_name or oid from PiazzaPost instances')
         del self.nameValueDict[key]
     
     def keys(self):
-        return self.nameValueDict.keys()
+        theKeys = self.nameValueDict.keys()
+        theKeys.extend(['anon_screen_name', 'oid'])
+        return theKeys
     
     def get(self, key, default=None):
         return self.nameValueDict.get(key, default)

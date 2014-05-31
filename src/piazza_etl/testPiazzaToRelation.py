@@ -2,6 +2,11 @@
 Created on May 25, 2014
 
 @author: paepcke
+
+TODO:
+- Test for user in Piazza, but not in student_anonymoususerid. Try:
+     swift@cs.rochester.edu,hqwn8jq5UdZ,stanford.edu__37c7c49c477d4689526ffbf924f3f528                                                                                                                kyleisliving@gmail.com,hqv1vcncSST,stanford.edu__70511e8ac611c4e730405e5998aef007
+     kyleisliving@gmail.com,hqv1vcncSST,stanford.edu__70511e8ac611c4e730405e5998aef007
 '''
 import unittest
 from unittest.case import skipIf
@@ -9,39 +14,63 @@ from unittest.case import skipIf
 from piazza_etl.piazza_to_relation import PiazzaImporter, PiazzaPost
 
 
-DO_ALL = False
+DO_ALL = True
 
 class Test(unittest.TestCase):
 
     def setUp(self):
         PiazzaImporter.CONVERT_FUNCTIONS_DB = 'unittest'
 
-    ####@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaPostSingletonMechanism(self):
+
+        # Initialize data structures, even though 
+        # for this text the PiazzaImporter is not
+        # explicitly used:
+        PiazzaImporter('unittest',       # MySQL user 
+                        '',               # MySQL pwd
+                        'unittest',       # MySQL db
+                        'piazza_content', # MySQL table
+                        'data/test_PiazzaContent.json', # Test file from Piazza
+                         mappingFile='data/test_AccountMappingInput.csv')
+
 
         # Two instantiations with same data 
         # should only create one instance:
-        aPost = PiazzaPost('oneUser', jsonDict={'foo' : 10, 'bar' : 20})
-        print(aPost)
-        bPost = PiazzaPost('oneUser', jsonDict={'foo' : 10, 'bar' : 20})
-        print(bPost)
+        aPost = PiazzaPost({'id' : 'hr7xjaytsC8', 'foo' : 10, 'bar' : 20})
+        #print(aPost)
+        bPost = PiazzaPost({'id' : 'hr7xjaytsC8', 'foo' : 10, 'bar' : 20})
+        #print(bPost)
         self.assertEqual(aPost, bPost)
         
         # Making any change in the JSON object should
         # create a new instance:
-        cPost = PiazzaPost('oneUser', jsonDict={'foo' : 20, 'bar' : 20})
-        print(cPost)
+        cPost = PiazzaPost({'id' : 'hr7xjaytsC8', 'foo' : 20, 'bar' : 20})
+        #print(cPost)
         self.assertNotEqual(aPost, cPost)
 
         # Search object by OID: 
-        dPost = PiazzaPost('oneUser', oid=bPost['oid'])
-        print(cPost)
+        dPost = PiazzaPost(bPost['oid'])
+        #print(cPost)
         self.assertEqual(bPost, dPost)
         
-        # Use minimal number of args:
-        ePost = PiazzaPost(aPost['oid'])
-        self.assertEqual(ePost, bPost)
-    
+
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testBadPiazzaJsonPostsInput(self):
+        try:
+            PiazzaPost({'foo' : 10, 'bar' : 20})
+        except ValueError:
+            pass
+        else:
+            self.fail('Bad JSON input should have raised a ValueError exception.')
+
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testUnmapablePiazzaId(self):
+        postObj = PiazzaPost({'id' : 'badPiazzaId', 'foo' : 10, 'bar' : 20})
+        anon = PiazzaImporter.makeUnknowAnonScreenName(postObj['id'])
+        self.assertEqual('unknown_piazza_mapping_badPiazzaId', anon)
+
+
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaToAnonMapping(self):
         # Try specifying a json content file (not a zip file),
@@ -52,7 +81,26 @@ class Test(unittest.TestCase):
                            'unittest',       # MySQL db
                            'piazza_content', # MySQL table
                            'data/test_PiazzaContent.json', # Test file from Piazza
-                             mappingFile=None)
+                            mappingFile=None)
+            
+            # If no error, then an earlier test created
+            # the singleton PiazzaImporter instance, and
+            # we are just getting that instance back. 
+            # So: force creation of a new PiazzaImporter instance;
+            # we don't normally do this!:
+
+            PiazzaImporter.singletonPiazzaImporter = None
+            
+            # and create a fresh PiazzaImporter. This
+            # definitely needs to throw a ValueError:
+
+            PiazzaImporter('unittest',       # MySQL user 
+                           '',               # MySQL pwd
+                           'unittest',       # MySQL db
+                           'piazza_content', # MySQL table
+                           'data/test_PiazzaContent.json', # Test file from Piazza
+                            mappingFile=None)
+
             raise(AssertionError)
         except ValueError:
             # properly raises exception
@@ -156,9 +204,9 @@ class Test(unittest.TestCase):
         # Keys of a PiazzaPost object:
         postObjKeys = piazzaImporter[0].keys()
         postObjKeys.sort()
-        trueKeys = ['anon_screen_name', u'change_log', u'children', u'config', u'created', u'folders', u'history', u'id', u'no_answer', u'no_answer_followup', u'nr', 'oid', u'status', u'tag_endorse_arr', u'tag_good', u'tag_good_arr', u'tags', u'type', u'unique_views']
-        self.assertEqual(trueKeys, postObjKeys)
+        trueKeys =  ['anon_screen_name', u'change_log', u'children', u'config', u'created', u'folders', u'history', u'id', u'no_answer', u'no_answer_followup', u'nr', 'oid', u'status', u'tag_endorse_arr', u'tag_good', u'tag_good_arr', u'tags', u'type', u'unique_views']
 
+        self.assertEqual(trueKeys, postObjKeys)
         
         # First post's type:
         theType = piazzaImporter[0]['type']
@@ -217,7 +265,7 @@ class Test(unittest.TestCase):
         # Test idPiazza2Anon():
         self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', piazzaImporter.idPiazza2Anon('hr7xjaytsC8'))
 
-    #****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testGetPosterId(self):
         
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
@@ -227,14 +275,8 @@ class Test(unittest.TestCase):
                                         'data/test_PiazzaContent.json', # Test file from Piazza
                                          mappingFile='data/test_AccountMappingInput.csv')
 
-        # Getting an anon_screen_name from one JSON object:
-        oneJsonDict = piazzaImporter.jData[0]
-        anon_screen_name_1st = piazzaImporter.getPosterUidAnon(oneJsonDict)
-        #*****self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', anon_screen_name_1st)
-
-        # Now with PiazzaPost obj:
         oneObj = piazzaImporter[0]
-        anon_screen_name_1st = piazzaImporter.getPosterUidAnon(oneObj)
+        anon_screen_name_1st = oneObj['anon_screen_name']
         self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', anon_screen_name_1st)
 
 
@@ -301,11 +343,11 @@ class Test(unittest.TestCase):
             thisObjCreateDates = self.childGetObjDates(piazzaObj)
             if thisObjCreateDates is None:
                 continue
-            createDates.extend(thisObjCreateDates)
+            createDates.extend(thisObjCreateDates, createDates)
         print(createDates)
         
-    def childGetObjDates(self, piazzaPostObj):
-        createDates = [piazzaPostObj['created']]
+    def childGetObjDates(self, piazzaPostObj, createDates):
+        createDates.append(piazzaPostObj['created'])
         children = piazzaPostObj['children']
         for child in children:
             childCreateDates = self.childGetObjDates(child)
