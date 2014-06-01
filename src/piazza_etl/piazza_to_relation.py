@@ -807,7 +807,7 @@ class PiazzaPostMetaclass(type):
         if not hasattr(self, 'piazzePostInstances'):
             self.piazzaPostInstances = {}
 
-    def __call__(self, objIdOrObjOrJsonDict, buildingChangeEventObj=False):
+    def __call__(self, objIdOrObjOrJsonDict, buildingChangeEventObj=False, buildingHistoryEventObj=False):
         '''
         Invoked whenever a PiazzaPost instance is created.
         Checks whether object with given OID or JSON object
@@ -896,7 +896,7 @@ class PiazzaPost(object):
     __metaclass__ = PiazzaPostMetaclass
 
     
-    def __init__(self, jsonDict, buildingChangeEventObj=False):
+    def __init__(self, jsonDict, buildingChangeEventObj=False, buildingHistoryEventObj=False):
         '''
         Note: because PiazzaPostMetaclass is this class'
         metaclass, instantiation of PiazzaPost will 
@@ -908,15 +908,18 @@ class PiazzaPost(object):
         '''
         self.nameValueDict = jsonDict
         # Add anon_screen_name to this instance's attribute:
-        # Two cases: if we are building from a main content post
+        # Three cases: if we are building from a main content post
         # JSON struct, the Piazza ID is in field 'id'.
         # But if we are building from an entry in a change_log
         # field of a JSON post struct, then the Piazza ID
         # may be in one of several fields instead, or may be 
-        # absent:
+        # absent. Similarly, if we are building a history event
+        # object, the Piazza ID is in 'uid': 
         
         if buildingChangeEventObj:
             piazzaId = self.getPiazzaIdFromChangeEvent(jsonDict)
+        elif buildingHistoryEventObj:
+            piazzaId = self.getPiazzaIdFromHistoryEvent(jsonDict)
         else:
             piazzaId = jsonDict.get('id', None)
             if piazzaId is None:
@@ -980,10 +983,31 @@ class PiazzaPost(object):
                         pass
                 changeLogObjs.append(oneChangeObj)
             self['change_log'] = changeLogObjs
+
+        # If there is a history array, turn each
+        # entry into its own PiazzaPost instance.
+        # Also replace Piazza uid by anonymous name:
+        try:
+            historyField = self['history']
+        except KeyError:
+            # New object has no history field:
+            pass
+        else:
+            # New object does have a history field, which is
+            # a JSON array of history structs (subject, content, created, anon, and uid):
+            historyObjs = []
+            for oneHistoryJson in historyField:
+                oneHistoryObj = PiazzaPost(oneHistoryJson, buildingHistoryEventObj=True)
+                piazzaId = oneHistoryObj.get('uid')
+                if piazzaId is not None:
+                    self['anon_screen_name'] = PiazzaImporter.resolveLTIToAnon(piazzaId)
+                historyObjs.append(oneHistoryObj)
+            self['history'] = historyObjs
+
     
     def getPiazzaIdFromChangeEvent(self, jsonDict):
         '''
-        Pull a Piazza ID out of a change request, if it's
+        Pull a Piazza ID out of a change log entry, if it's
         there. The id maybe be in one of several fields:
           - to
           - data
@@ -995,6 +1019,19 @@ class PiazzaPost(object):
         piazzaId = jsonDict.get('to')
         if piazzaId is None:
             piazzaId = jsonDict.get('data')
+        return piazzaId
+            
+    
+    def getPiazzaIdFromHistoryEvent(self, jsonDict):
+        '''
+        Pull a Piazza ID out of a history event, if it's
+        there. The Piazza id there is in field 'uid': 
+        Return None if no Piazza ID is present in the JSON obj.
+        
+        :param jsonDict:
+        :type jsonDict:
+        '''
+        piazzaId = jsonDict.get('uid')
         return piazzaId
             
     
@@ -1095,6 +1132,38 @@ class PiazzaPost(object):
     
     def get(self, key, default=None):
         return self.nameValueDict.get(key, default)
+
+
+    def toTuple(self):
+        '''
+        Returns a tuple that is ready for insertion into table
+        PiazzaPost. Schema:
+			'anon_screen_name',
+			'oid', 
+			created', 
+			updated', 
+			type',
+			anon', 
+			tags', 
+			unique_views',
+			status', 
+			folders', 
+			num_upvotes', 
+			num_answer',
+			num_answer_followup',
+			nr', 
+			lk',  
+			good_tags',
+			endorse_tags'
+			history',
+			children', 
+			bucket_name',
+			change_log',  
+			config',
+			piazzaId',
+			        
+        '''
+        
 
 class PiazzaUserMetaclass(type):
     '''
