@@ -32,7 +32,8 @@ class Test(unittest.TestCase):
                         'unittest',       # MySQL db
                         'piazza_content', # MySQL table
                         'data/test_PiazzaContent.json', # Test file from Piazza
-                         mappingFile='data/test_AccountMappingInput.csv')
+                        'data/test_PiazzaUsers.json',
+                        mappingFile='data/test_AccountMappingInput.csv')
 
 
         # Two instantiations with same data 
@@ -81,7 +82,8 @@ class Test(unittest.TestCase):
                            'unittest',       # MySQL db
                            'piazza_content', # MySQL table
                            'data/test_PiazzaContent.json', # Test file from Piazza
-                            mappingFile=None)
+                           'data/test_PiazzaUsers.json',
+                           mappingFile=None)
             
             # If no error, then an earlier test created
             # the singleton PiazzaImporter instance, and
@@ -99,7 +101,8 @@ class Test(unittest.TestCase):
                            'unittest',       # MySQL db
                            'piazza_content', # MySQL table
                            'data/test_PiazzaContent.json', # Test file from Piazza
-                            mappingFile=None)
+                           'data/test_PiazzaUsers.json',
+                           mappingFile=None)
 
             raise(AssertionError)
         except ValueError:
@@ -111,7 +114,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                         mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json',
+                                        mappingFile='data/test_AccountMappingInput.csv')
         
         self.assertEqual(piazzaImporter.piazza2Anon['h8ndx888SKN'], u'ac79b0b077dd8c44d9ea6dfac1f08e6cd0ba29ea')
         self.assertEqual(piazzaImporter.piazza2Anon['hc19qkoyc9C'], u'8491933cf7fd48668da31fdcddc1e55a3fdb120b')
@@ -127,13 +131,14 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                         mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json',
+                                        mappingFile='data/test_AccountMappingInput.csv')
 
 
         firstObj = piazzaImporter[0]
-        self.assertEqual('wu_ug_FC_rbo0Lhca1YOUA==', firstObj['oid'])
+        self.assertEqual('XJ8LO55EUbrCAcMyzSbP3w==', firstObj['oid'])
         secondObj = piazzaImporter[1]
-        self.assertEqual('z0df3VaEGTBxAWQrfuv3hw==', secondObj['oid'])
+        self.assertEqual('9OOUV8g_SqbPDuRldhHUhw==', secondObj['oid'])
         self.assertEqual('D7ObrIJu2xZS-vCNSH9RqQ==', firstObj['children'][0]['oid'])
 
         anon_screen_name = firstObj['anon_screen_name']
@@ -273,7 +278,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                         mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json',
+                                        mappingFile='data/test_AccountMappingInput.csv')
 
         oneObj = piazzaImporter[0]
         anon_screen_name_1st = oneObj['anon_screen_name']
@@ -288,7 +294,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                         mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json',
+                                        mappingFile='data/test_AccountMappingInput.csv')
 
         # Get children of first JSON obj:
         children = piazzaImporter[0]['children']
@@ -305,7 +312,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                         mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json',
+                                        mappingFile='data/test_AccountMappingInput.csv')
 
         secondObj = piazzaImporter[1]
         self.assertEqual(secondObj, piazzaImporter[secondObj['oid']])
@@ -317,7 +325,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                         mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json',
+                                        mappingFile='data/test_AccountMappingInput.csv')
         firstObj = piazzaImporter[0]
         secondObj = piazzaImporter[1]
         for i,obj in enumerate(piazzaImporter):
@@ -335,7 +344,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                         mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json',
+                                        mappingFile='data/test_AccountMappingInput.csv')
 
         # List all creation dates:
         createDates = []
@@ -364,7 +374,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                         mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json',
+                                        mappingFile='data/test_AccountMappingInput.csv')
         types = []
         for piazzaObj in piazzaImporter:
             types.extend(self.getAllFieldsFromX(piazzaObj, 'type'))
