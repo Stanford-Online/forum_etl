@@ -488,7 +488,7 @@ class EdxForumScrubber(object):
             posterColHeader = 'screen_name'
             
         createCmd = "CREATE TABLE `contents` ( \
-                  `%s` varchar(40), \
+                  `%s` varchar(40) NOT NULL DEFAULT 'anon_screen_name_redacted', \
                   `type` varchar(20) NOT NULL, \
                   `anonymous` varchar(10) NOT NULL, \
                   `anonymous_to_peers` varchar(10) NOT NULL, \
@@ -506,7 +506,9 @@ class EdxForumScrubber(object):
                   `comment_thread_id` varchar(255) DEFAULT NULL, \
                   `parent_id` varchar(255) DEFAULT NULL, \
                   `parent_ids` varchar(255) DEFAULT NULL, \
-                  `sk` varchar(255) DEFAULT NULL \
+                  `sk` varchar(255) DEFAULT NULL, \
+                  `confusion` varchar(20) NOT NULL DEFAULT 'none', \
+                  `happiness` varchar(20) NOT NULL DEFAULT 'none' \
                 ) ENGINE=MYISAM DEFAULT CHARSET=latin1" % posterColHeader
                 
         self.mydb.execute(createCmd)

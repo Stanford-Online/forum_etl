@@ -1,8 +1,20 @@
 [
-{"posts":0,"days":7,"email":"foo1@hotmail.com","views":7,"asks":0,"name":"John Doe1","user_id":"hc19qkoyc9C","answers":0},
-{"posts":0,"days":0,"email":"foo2@gmail.com","views":0,"asks":0,"name":"John Doe2","user_id":"h8ndx888SKN","answers":0},
-{"posts":0,"days":1,"email":"foo3@gmail.com","views":1,"asks":0,"name":"John Doe3","user_id":"hr7xjaytsC8","answers":0},
+{"posts":0,"days":7,"email":"foo1@hotmail.com","views":7,"asks":0,"name":"John Doe1","user_id":"hc19qkoyc9C","answers":0,    
+	"lti_ids": [
+        	   "stanford.edu__47bf69315b7391dace7ccbc344690969"
+		   	]},
+{"posts":0,"days":0,"email":"foo2@gmail.com","views":0,"asks":0,"name":"John Doe2","user_id":"h8ndx888SKN","answers":0,
+	"lti_ids": [
+        	   "stanford.edu__fad3f083830511c86cb2ac72d61b7c08"
+		   	]},
+{"posts":0,"days":1,"email":"foo3@gmail.com","views":1,"asks":0,"name":"John Doe3","user_id":"hr7xjaytsC8","answers":0,
+	"lti_ids": [
+        	   "stanford.edu__aff1b14edf5054292a31e584b4749f42"
+		   	]},
 {"posts":2,"days":1,"email":"foo4@ymail.com","views":5,"asks":0,"name":"John Doe4","user_id":"hqq8e4mn3fp115","answers":0},
 {"posts":1,"days":4,"email":"foo5@gmail.com","views":19,"asks":0,"name":"John Doe5","user_id":"hqq8698bz7v4e8","answers":0},
-{"posts":3,"days":1,"email":"foo6@hotmail.com","views":8,"asks":0,"name":"John Doe6","user_id":"hqyjmaplhAK","answers":0}
+{"posts":3,"days":1,"email":"foo6@hotmail.com","views":8,"asks":0,"name":"John Doe6","user_id":"hqyjmaplhAK","answers":0,
+	"lti_ids": [
+        	   "stanford.edu__e29cd43b890fc67d6d3209bc5ed3d63a"
+		   	]}
 ]

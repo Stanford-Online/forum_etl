@@ -14,7 +14,7 @@ from unittest.case import skipIf
 from piazza_etl.piazza_to_relation import PiazzaImporter, PiazzaPost
 
 
-DO_ALL = True
+DO_ALL = False
 
 class Test(unittest.TestCase):
 
@@ -68,12 +68,65 @@ class Test(unittest.TestCase):
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testUnmapablePiazzaId(self):
         postObj = PiazzaPost({'id' : 'badPiazzaId', 'foo' : 10, 'bar' : 20})
-        anon = PiazzaImporter.makeUnknowAnonScreenName(postObj['id'])
-        self.assertEqual('unknown_piazza_mapping_badPiazzaId', anon)
+#        anon = PiazzaImporter.makeUnknowAnonScreenName(postObj['id'])
+#        self.assertEqual('unknown_piazza_mapping_badPiazzaId', anon)
 
+    #*****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testUsersImport(self):
+        # Get an importer with minimal initialization;
+        # accomplished by the 'unittesting=True':
+        importer = PiazzaImporter(None,
+                                  None,
+                                  None,
+                                  None,
+                                  'data/test_PiazzaContent.json',
+                                  usersFileName='data/test_PiazzaUsers.json',
+                                  unittesting=True)
+
+        importer.importJsonUsersFromPiazzaZip('data/test_PiazzaUsers.json')
+        hc19qkoyc9C_UserObj = PiazzaImporter.usersByPiazzaId['hc19qkoyc9C']
+        
+        truth = [(u'asks', 0), 
+                 (u'views', 7), 
+                 ('ext_id', u'47bf69315b7391dace7ccbc344690969'), 
+                 ('piazza_id', u'hc19qkoyc9C'), 
+                 (u'posts', 0), 
+                 (u'days', 7), 
+                 (u'answers', 0)
+                 ]
+        
+        self.assertItemsEqual(truth, hc19qkoyc9C_UserObj.items())
+
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testContentsImport(self):
+        # Get an importer with minimal initialization;
+        # accomplished by the 'unittesting=True':
+        importer = PiazzaImporter(None,
+                                  None,
+                                  None,
+                                  None,
+                                  'data/test_PiazzaContent.json',
+                                  usersFileName='data/test_PiazzaUsers.json',
+                                  unittesting=True)
+
+        importer.importJsonContentFromPiazzaZip('data/test_PiazzaContent.json')
+        
+
+                         
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaToAnonMapping(self):
+        #***** MUTILATED
+        importer = PiazzaImporter(None,
+                                  None,
+                                  None,
+                                  None,
+                                  'data/test_PiazzaContent.json',
+                                  usersFileName='data/test_PiazzaUsers.json',
+                                  unittesting=True)
+        
+        #importer.createPiazzaId2Anon('data/test_PiazzaUsers.json')
+        
         # Try specifying a json content file (not a zip file),
         # without then specifying a file with account ID mapping:
         try:
