@@ -27,7 +27,7 @@ class Test(unittest.TestCase):
         # Initialize data structures, even though 
         # for this text the PiazzaImporter is not
         # explicitly used:
-        PiazzaImporter('unittest',       # MySQL user 
+        PiazzaImporter( 'unittest',       # MySQL user 
                         '',               # MySQL pwd
                         'unittest',       # MySQL db
                         'piazza_content', # MySQL table
@@ -75,16 +75,24 @@ class Test(unittest.TestCase):
     def testUsersImport(self):
         # Get an importer with minimal initialization;
         # accomplished by the 'unittesting=True':
-        importer = PiazzaImporter(None,
-                                  None,
-                                  None,
-                                  None,
-                                  'data/test_PiazzaContent.json',
-                                  usersFileName='data/test_PiazzaUsers.json',
+        importer = PiazzaImporter('unittest', # MySQL user
+                                  '',         # MySQL pwd
+                                  'unittest', # MySQL db
+                                  None,       # MySQL table
+                                  'data/test_PiazzaContent.json', # JSON Piazza content file path
+                                  usersFileName='data/test_PiazzaUsers.json', # JSON Piazza user info file path
                                   unittesting=True)
 
         importer.importJsonUsersFromPiazzaZip('data/test_PiazzaUsers.json')
+        
+        # Test retrieval of one PiazzaUser instance by Piazza uid.
         hc19qkoyc9C_UserObj = PiazzaImporter.usersByPiazzaId['hc19qkoyc9C']
+
+        # To make this test work even if the underlying database
+        # does not have a mapping from the LTI to user int,
+        # force correctness, but at least check for correct type:
+        if type(hc19qkoyc9C_UserObj) != int:
+            assert("A PiazzaUser's user_int_id must be an integer.")
         
         truth = [(u'asks', 0), 
                  (u'views', 7), 
@@ -92,10 +100,16 @@ class Test(unittest.TestCase):
                  ('piazza_id', u'hc19qkoyc9C'), 
                  (u'posts', 0), 
                  (u'days', 7), 
-                 (u'answers', 0)
+                 (u'answers', 0),
+                 ('anon_screen_name', 'anon_screen_name_redacted'),
+                 ('user_int_id', hc19qkoyc9C_UserObj['user_int_id']),
                  ]
         
         self.assertItemsEqual(truth, hc19qkoyc9C_UserObj.items())
+
+        hc19qkoyc9C_UserObj = PiazzaImporter[0]
+        self.assertItemsEqual(truth, hc19qkoyc9C_UserObj.items())
+        
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testContentsImport(self):
