@@ -8,6 +8,7 @@ TODO:
      swift@cs.rochester.edu,hqwn8jq5UdZ,stanford.edu__37c7c49c477d4689526ffbf924f3f528                                                                                                                kyleisliving@gmail.com,hqv1vcncSST,stanford.edu__70511e8ac611c4e730405e5998aef007
      kyleisliving@gmail.com,hqv1vcncSST,stanford.edu__70511e8ac611c4e730405e5998aef007
 '''
+import json
 import unittest
 from unittest.case import skipIf
 
@@ -33,7 +34,7 @@ class Test(unittest.TestCase):
                         'piazza_content', # MySQL table
                         'data/test_PiazzaContent.json', # Test file from Piazza
                         'data/test_PiazzaUsers.json',
-                        mappingFile='data/test_AccountMappingInput.csv')
+                        )
 
 
         # Two instantiations with same data 
@@ -68,10 +69,10 @@ class Test(unittest.TestCase):
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testUnmapablePiazzaId(self):
         postObj = PiazzaPost({'id' : 'badPiazzaId', 'foo' : 10, 'bar' : 20})
-#        anon = PiazzaImporter.makeUnknowAnonScreenName(postObj['id'])
-#        self.assertEqual('unknown_piazza_mapping_badPiazzaId', anon)
+        self.assertEqual(-1, postObj['user_int_id'])
+        self.assertEqual('anon_screen_name_redacted', postObj['anon_screen_name'])
 
-    #*****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testUsersImport(self):
         # Get an importer with minimal initialization;
         # accomplished by the 'unittesting=True':
@@ -106,10 +107,13 @@ class Test(unittest.TestCase):
                  ]
         
         self.assertItemsEqual(truth, hc19qkoyc9C_UserObj.items())
-
-        hc19qkoyc9C_UserObj = PiazzaImporter[0]
-        self.assertItemsEqual(truth, hc19qkoyc9C_UserObj.items())
         
+        # Check that PiazzaImporter created the proper number of PiazzaUser
+        # instances. It should equal the number of top level JSON 
+        # structs in the test file for this test method:
+        with open('data/test_PiazzaUsers.json', 'r') as fd:
+            numJsonLines = len(json.load(fd))
+        self.assertEqual(numJsonLines, len(importer))
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testContentsImport(self):
@@ -124,73 +128,25 @@ class Test(unittest.TestCase):
                                   unittesting=True)
 
         importer.importJsonContentFromPiazzaZip('data/test_PiazzaContent.json')
-        
+        #****** Needs more
 
                          
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
-    def testPiazzaToAnonMapping(self):
-        #***** MUTILATED
-        importer = PiazzaImporter(None,
-                                  None,
-                                  None,
-                                  None,
-                                  'data/test_PiazzaContent.json',
-                                  usersFileName='data/test_PiazzaUsers.json',
+    def testPiazzaToUserIntIdMapping(self):
+        importer = PiazzaImporter('unittest', # MySQL user
+                                  '',         # MySQL pwd
+                                  'unittest', # MySQL db
+                                  None,       # MySQL table
+                                  'data/test_PiazzaContent.json', # JSON Piazza content file path
+                                  usersFileName='data/test_PiazzaUsers.json', # JSON Piazza user info file path
                                   unittesting=True)
-        
-        #importer.createPiazzaId2Anon('data/test_PiazzaUsers.json')
-        
-        # Try specifying a json content file (not a zip file),
-        # without then specifying a file with account ID mapping:
-        try:
-            PiazzaImporter('unittest',       # MySQL user 
-                           '',               # MySQL pwd
-                           'unittest',       # MySQL db
-                           'piazza_content', # MySQL table
-                           'data/test_PiazzaContent.json', # Test file from Piazza
-                           'data/test_PiazzaUsers.json',
-                           mappingFile=None)
-            
-            # If no error, then an earlier test created
-            # the singleton PiazzaImporter instance, and
-            # we are just getting that instance back. 
-            # So: force creation of a new PiazzaImporter instance;
-            # we don't normally do this!:
-
-            PiazzaImporter.singletonPiazzaImporter = None
-            
-            # and create a fresh PiazzaImporter. This
-            # definitely needs to throw a ValueError:
-
-            PiazzaImporter('unittest',       # MySQL user 
-                           '',               # MySQL pwd
-                           'unittest',       # MySQL db
-                           'piazza_content', # MySQL table
-                           'data/test_PiazzaContent.json', # Test file from Piazza
-                           'data/test_PiazzaUsers.json',
-                           mappingFile=None)
-
-            raise(AssertionError)
-        except ValueError:
-            # properly raises exception
-            pass
-                        
-        piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
-                                        '',               # MySQL pwd
-                                        'unittest',       # MySQL db
-                                        'piazza_content', # MySQL table
-                                        'data/test_PiazzaContent.json', # Test file from Piazza
-                                        'data/test_PiazzaUsers.json',
-                                        mappingFile='data/test_AccountMappingInput.csv')
-        
-        self.assertEqual(piazzaImporter.piazza2Anon['h8ndx888SKN'], u'ac79b0b077dd8c44d9ea6dfac1f08e6cd0ba29ea')
-        self.assertEqual(piazzaImporter.piazza2Anon['hc19qkoyc9C'], u'8491933cf7fd48668da31fdcddc1e55a3fdb120b')
-        self.assertEqual(piazzaImporter.piazza2Anon['hr7xjaytsC8'], u'8caf8996ed242c081908e29e134f93f075343e4f')
-        #print(piazzaImporter.piazza2Anon)
+        importer.importJsonUsersFromPiazzaZip('data/test_PiazzaUsers.json')        
+        self.assertEqual(210129, importer.idPiazza2UserIntId('hqyjmaplhAK'))
+        self.assertEqual(211516, importer.idPiazza2UserIntId('hc19qkoyc9C'))
 
 
-    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    #*****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testContentLoadingToMemory(self):
         
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
@@ -199,17 +155,22 @@ class Test(unittest.TestCase):
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
                                         'data/test_PiazzaUsers.json',
-                                        mappingFile='data/test_AccountMappingInput.csv')
+                                        )
 
 
         firstObj = piazzaImporter[0]
-        self.assertEqual('XJ8LO55EUbrCAcMyzSbP3w==', firstObj['oid'])
+        self.assertEqual('wu_ug_FC_rbo0Lhca1YOUA==', firstObj['oid'])
+        self.assertEqual('hr7xjaytsC8', firstObj['piazza_id'])
+        self.assertEqual('anon_screen_name_redacted', firstObj['anon_screen_name'])
+        self.assertEqual('anon_screen_name_redacted', firstObj['children'][0]['anon_screen_name'])
+        self.assertEqual('hc19qkoyc9C', firstObj['children'][0]['piazza_id'])
+        
         secondObj = piazzaImporter[1]
-        self.assertEqual('9OOUV8g_SqbPDuRldhHUhw==', secondObj['oid'])
-        self.assertEqual('D7ObrIJu2xZS-vCNSH9RqQ==', firstObj['children'][0]['oid'])
-
-        anon_screen_name = firstObj['anon_screen_name']
-        self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', anon_screen_name)
+        self.assertEqual('z0df3VaEGTBxAWQrfuv3hw==', secondObj['oid'])
+        # The first child of the second object should reference
+        # the first object:
+        self.assertEqual(firstObj['piazza_id'], secondObj['children'][0]['piazza_id'])
+        self.assertEqual(firstObj['user_int_id'], secondObj['children'][0]['user_int_id'])
         
         
         #   --- Getting Subject --- 
