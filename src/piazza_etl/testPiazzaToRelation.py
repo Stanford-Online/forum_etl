@@ -57,14 +57,14 @@ class Test(unittest.TestCase):
         self.assertEqual(bPost, dPost)
         
 
-    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
-    def testBadPiazzaJsonPostsInput(self):
-        try:
-            PiazzaPost({'foo' : 10, 'bar' : 20})
-        except ValueError:
-            pass
-        else:
-            self.fail('Bad JSON input should have raised a ValueError exception.')
+#     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+#     def testBadPiazzaJsonPostsInput(self):
+#         try:
+#             PiazzaPost({'foo' : 10, 'bar' : 20})
+#         except ValueError:
+#             pass
+#         else:
+#             self.fail('Bad JSON input should have raised a ValueError exception.')
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testUnmapablePiazzaId(self):
@@ -114,23 +114,9 @@ class Test(unittest.TestCase):
         with open('data/test_PiazzaUsers.json', 'r') as fd:
             numJsonLines = len(json.load(fd))
         self.assertEqual(numJsonLines, len(importer))
+        
+        hc19qkoyc9C_UserObj.keys()
 
-    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
-    def testContentsImport(self):
-        # Get an importer with minimal initialization;
-        # accomplished by the 'unittesting=True':
-        importer = PiazzaImporter(None,
-                                  None,
-                                  None,
-                                  None,
-                                  'data/test_PiazzaContent.json',
-                                  usersFileName='data/test_PiazzaUsers.json',
-                                  unittesting=True)
-
-        importer.importJsonContentFromPiazzaZip('data/test_PiazzaContent.json')
-        #****** Needs more
-
-                         
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaToUserIntIdMapping(self):
@@ -146,7 +132,7 @@ class Test(unittest.TestCase):
         self.assertEqual(211516, importer.idPiazza2UserIntId('hc19qkoyc9C'))
 
 
-    #*****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testContentLoadingToMemory(self):
         
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
@@ -158,56 +144,149 @@ class Test(unittest.TestCase):
                                         )
 
 
-        firstObj = piazzaImporter[0]
-        self.assertEqual('wu_ug_FC_rbo0Lhca1YOUA==', firstObj['oid'])
-        self.assertEqual('hr7xjaytsC8', firstObj['piazza_id'])
-        self.assertEqual('anon_screen_name_redacted', firstObj['anon_screen_name'])
-        self.assertEqual('anon_screen_name_redacted', firstObj['children'][0]['anon_screen_name'])
-        self.assertEqual('hc19qkoyc9C', firstObj['children'][0]['piazza_id'])
+        firstPostObj = piazzaImporter[0]
+        
+        # Internal oid (not client facing):
+        self.assertEqual('ca3GPkUlKbCqqjlRSxirVg==', firstPostObj['oid'])
+        
+        # Original Piazza uid of poster:
+        self.assertEqual('hr7xjaytsC8', firstPostObj['piazza_id'])
+        
+        # Post's poster's user_int_id should be 
+        # an integer greater than -1:
+        self.assertGreater(firstPostObj['user_int_id'], -1)
+        
+        # Top level object, plus first of the object's 'children' property:
+        self.assertEqual('anon_screen_name_redacted', firstPostObj['anon_screen_name'])
+        self.assertEqual('anon_screen_name_redacted', firstPostObj['children'][0]['anon_screen_name'])
+        self.assertEqual('hc19qkoyc9C', firstPostObj['children'][0]['piazza_id'])
         
         secondObj = piazzaImporter[1]
-        self.assertEqual('z0df3VaEGTBxAWQrfuv3hw==', secondObj['oid'])
+        self.assertEqual('scqTSRqUDEdBTN3B0XOODg==', secondObj['oid'])
         # The first child of the second object should reference
         # the first object:
-        self.assertEqual(firstObj['piazza_id'], secondObj['children'][0]['piazza_id'])
-        self.assertEqual(firstObj['user_int_id'], secondObj['children'][0]['user_int_id'])
+        self.assertEqual(firstPostObj['piazza_id'], secondObj['children'][0]['piazza_id'])
+        self.assertEqual(firstPostObj['user_int_id'], secondObj['children'][0]['user_int_id'])
         
         
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    def testHighLevelAccessors(self):
+
+        piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
+                                        '',               # MySQL pwd
+                                        'unittest',       # MySQL db
+                                        'piazza_content', # MySQL table
+                                        'data/test_PiazzaContent.json', # Test file from Piazza
+                                        'data/test_PiazzaUsers.json',
+                                        )
+
+
+        firstPostObj = piazzaImporter[0]
+        
+        self.assertEqual('hr7xjaytsC8',firstPostObj['piazza_id'])
+
+        #   --- Getting Children --- 
+        children = firstPostObj['children']
+        self.assertEqual(1, len(children))
+        child = children[0]
+        self.assertEqual('wABgOWyIDVYn-8kzkgMnNw==', child['oid'])
+
+        childHistArr = child['history']
+        self.assertEqual(1, len(childHistArr))
+        childHistContentObj = childHistArr[0]
+        self.assertEqual('2014-01-26T18:13:50Z', childHistContentObj['created'])
+
+        self.assertEqual('hqq8e4mn3fp115',childHistContentObj['piazza_id'])
+        self.assertGreater(childHistContentObj['user_int_id'],-1)
+
         #   --- Getting Subject --- 
         
         # Getting subject from a PiazzaPost instance:
-        subject = firstObj['subject']
+        subject = firstPostObj['subject']
         self.assertEqual('wireshark shows same packet sent twice', subject)
         
         # Getting subject from a PiazzaPost OID:
-        subject = piazzaImporter.getSubject(firstObj)
+        subject = piazzaImporter.getSubject(firstPostObj)
         self.assertEqual('wireshark shows same packet sent twice', subject)
         
         # Getting subject from a PiazzaPost JSON object:
-        subject = piazzaImporter.getSubject(firstObj.nameValueDict)
+        subject = piazzaImporter.getSubject(firstPostObj.nameValueDict)
         self.assertEqual('wireshark shows same packet sent twice', subject)
         
         # Getting the subject of the first post:
         subject = piazzaImporter[0]['subject']
         self.assertEqual('wireshark shows same packet sent twice', subject)
         
+        # Date of second entry in first object's history array:
+        theDate = firstPostObj['history'][1]['create_date']
+        self.assertEqual('2014-01-26T10:08:18Z', theDate)
+        
+        # Test history arrays with more than one entry:
+        thirdPostObj = piazzaImporter[2]
+        
+        self.assertEqual('2014-01-22T08:09:32Z', thirdPostObj['updated'])
+        self.assertEqual('<p>64-bit Waterfox</p>', thirdPostObj['subject'])
+        
+        thirdPostKeys = [
+                        'folders',
+                        'updated',
+                        'no_upvotes',
+                        'uid',
+                        'no_answer',
+                        'config',
+                        'created',
+                        'piazza_id',
+                        'user_int_id',
+                        'anon_screen_name',
+                        'id',
+                        'change_log',
+                        'anon',
+                        'bucket_name',
+                        'type',
+                        'bucket_order',
+                        'data',
+                        'children',
+                        'subject',
+                        'oid'
+                        ]
+        self.assertItemsEqual(thirdPostKeys, thirdPostObj.keys())
+
+        
+        fourthPostObj = piazzaImporter[3]
+        
+        self.assertEqual(241, fourthPostObj['unique_views'])
+        
+        #****** Test: nr == 9 when nr is renamed
+
+        fourthObjSubj = fourthPostObj['subject']
+        self.assertEqual('pre-course survey is not viewing', fourthObjSubj)
+
+        self.assertEqual('h814wubnNmj',fourthPostObj['history'][4]['piazza_id'])
+
+        
+        
         #   --- Getting Content --- 
 
         # Getting content from a PiazzaPost instance:
-        content = piazzaImporter.getContent(secondObj)
-        self.assertEqual('<p>Just wanted to pop in and say hello just as class starts.', content)
+        fourthObjContent = ['Content objFour 5th from bottom.',
+                            'Content objFour 4th from bottom.',
+                            'Content objFour 3rd from bottom.',
+                            'Content objFour 2nd from bottom.',
+                            'Content objFour 1st from bottom.'
+                            ]
+
+        
+        
+        contentArr = fourthPostObj['content']
+        self.assertItemsEqual(fourthObjContent, contentArr)
         
         # Getting content from a PiazzaPost OID:
-        content = piazzaImporter.getContent(secondObj['oid'])
-        self.assertEqual('<p>Just wanted to pop in and say hello just as class starts.', content)
+        contentArr = piazzaImporter.getContent(fourthPostObj['oid'])
+        self.assertItemsEqual(fourthObjContent, contentArr)
         
         # Get first post's content (i.e. body):
-        content = piazzaImporter[0]['content']
-        self.assertEqual('<p>I tried to use', content[0:17])
-        
-        # Get first post's content (i.e. body):
-        content = piazzaImporter[0]['body']    # For compatibility with OpenEdX forum
-        self.assertEqual('<p>I tried to use', content[0:17])
+        content = piazzaImporter[-1]['body']    # For compatibility with OpenEdX forum
+        self.assertEqual(fourthObjContent, content)
 
         
         # Get first post's tags:
@@ -234,30 +313,27 @@ class Test(unittest.TestCase):
         cDate = piazzaImporter[0].get('created', '0000-00-00T00:00:00')
         self.assertEqual('2014-01-26T10:08:18Z', cDate)
         
-        # Keys of a PiazzaPost object:
-        postObjKeys = piazzaImporter[0].keys()
-        postObjKeys.sort()
-        trueKeys =  ['anon_screen_name', u'change_log', u'children', u'config', u'created', u'folders', u'history', u'id', u'no_answer', u'no_answer_followup', u'nr', 'oid', u'status', u'tag_endorse_arr', u'tag_good', u'tag_good_arr', u'tags', u'type', u'unique_views']
-
-        self.assertEqual(trueKeys, postObjKeys)
-        
         # First post's type:
         theType = piazzaImporter[0]['type']
         self.assertEqual('question', theType)
         
-        # First post's good-tags-array of anon_screen_name:
+        # First post's good-tags-array of user_int_id's;
+        # In original json these are arrays of Piazza Ids.
+        # That raw is ['hc19qkoyc9C']; get the user_int_id
+        # we expect:
+        user_int_id = PiazzaImporter.idPiazza2UserIntId('hc19qkoyc9C')
         tagGoodArr = piazzaImporter[0]['tag_good_arr']
-        self.assertEqual(['8491933cf7fd48668da31fdcddc1e55a3fdb120b'], tagGoodArr)
-        # Synonym for tag_good_arr: good_tag:
+        self.assertEqual([user_int_id], tagGoodArr)
+        # Synonym for tag_good_arr: good_tags:
         tagGoodArr = piazzaImporter[0]['good_tags']
-        self.assertEqual(['8491933cf7fd48668da31fdcddc1e55a3fdb120b'], tagGoodArr)
+        self.assertEqual([user_int_id], tagGoodArr)
         
         # First endorse-tags array:
         tagEndorseArr = piazzaImporter[0]['tag_endorse_arr']
-        self.assertEqual(['ac79b0b077dd8c44d9ea6dfac1f08e6cd0ba29ea'], tagEndorseArr)
+        self.assertEqual([232871], tagEndorseArr)
         # Synonym for tag_endorse_arr: endorse_tags:
         tagEndorseArr = piazzaImporter[0]['endorse_tags']
-        self.assertEqual(['ac79b0b077dd8c44d9ea6dfac1f08e6cd0ba29ea'], tagEndorseArr)
+        self.assertEqual([232871], tagEndorseArr)
         
         
         # Second post's number of up-votes received:
@@ -276,14 +352,13 @@ class Test(unittest.TestCase):
         anonLevel = piazzaImporter[1]['anon']
         self.assertEqual('no', anonLevel)
         
-        # First post's bucket name:
-        try:
-            piazzaImporter[0]['bucket_name']
-            self.fail('Obj 0 has no bucket name; should be KeyError')
-        except KeyError:
-            pass
+        # First post's bucket name property does not exist:
+        self.assertIsNone(piazzaImporter[0]['bucket_name'])
+        
+        self.assertFalse(piazzaImporter[0].has_key('bucket_name'))
 
         # Second post's bucket name:
+        self.assertTrue(piazzaImporter[1].has_key('bucket_name'))
         bucketName = piazzaImporter[1]['bucket_name'] # second JSON obj!
         self.assertEqual('Week 1/19 - 1/25', bucketName)
 
@@ -296,7 +371,7 @@ class Test(unittest.TestCase):
         self.assertEqual(['lectures'], folders)
 
         # Test idPiazza2Anon():
-        self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', piazzaImporter.idPiazza2Anon('hr7xjaytsC8'))
+        self.assertEqual(260005, piazzaImporter.idPiazza2UserIntId('hr7xjaytsC8'))
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testGetPosterId(self):
@@ -311,7 +386,7 @@ class Test(unittest.TestCase):
 
         oneObj = piazzaImporter[0]
         anon_screen_name_1st = oneObj['anon_screen_name']
-        self.assertEqual('8caf8996ed242c081908e29e134f93f075343e4f', anon_screen_name_1st)
+        self.assertEqual('anon_screen_name_redacted', anon_screen_name_1st)
 
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
@@ -364,7 +439,7 @@ class Test(unittest.TestCase):
                 self.assertEqual(secondObj, obj)
 
         
-    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    #****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testChildRecursion(self):
         
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
@@ -372,9 +447,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                        'data/test_PiazzaUsers.json',
-                                        mappingFile='data/test_AccountMappingInput.csv')
-
+                                        'data/test_PiazzaUsers.json'
+                                        )
         # List all creation dates:
         createDates = []
         for piazzaObj in piazzaImporter:
@@ -385,14 +459,20 @@ class Test(unittest.TestCase):
                        u'2014-01-22T01:25:00Z', 
                        u'2014-01-22T06:49:14Z', 
                        u'2014-01-28T02:30:03Z', 
-                       u'2014-01-28T02:30:03Z']
+                       u'2014-01-28T02:30:03Z',
+                       u'2014-01-22T08:09:32Z', 
+                       None
+                       ]
         self.assertEqual(groundTruth, createDates)
         
     def childGetObjDates(self, piazzaPostObj):
-        createDates = [piazzaPostObj['created']]
+        createDate = piazzaPostObj['created']
         children = piazzaPostObj['children']
-        for child in children:
-            createDates.extend(self.childGetObjDates(child))
+        createDates = []
+        if len(children) > 0 and createDate is not None:
+            createDates.append(createDate)
+            for child in children:
+                createDates.extend(self.childGetObjDates(child))
         return createDates
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
@@ -408,7 +488,7 @@ class Test(unittest.TestCase):
         for piazzaObj in piazzaImporter:
             types.extend(self.getAllFieldsFromX(piazzaObj, 'type'))
         #print(types)
-        gold = [u'question', u'i_answer', u'note', u'followup', u'feedback', u'feedback']
+        gold = [u'question', u'i_answer', u'note', u'followup', u'feedback', u'feedback', u'followup', None]
         self.assertEqual(gold, types)
 
     def getAllFieldsFromX(self, piazzaPostObj, fieldName):
@@ -424,10 +504,11 @@ class Test(unittest.TestCase):
         '''
         fieldValues = [piazzaPostObj[fieldName]]
         children = piazzaPostObj['children']
+        if len(children) == 0:
+            return(fieldValues)
         for child in children:
             fieldValues.extend(self.getAllFieldsFromX(child, fieldName))
-        return fieldValues
-
+        return(fieldValues)
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testPiazzaToAnonMappinig']

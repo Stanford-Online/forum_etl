@@ -3,9 +3,26 @@ Created on May 23, 2014
 
 @author: paepcke
 
+This class imports a Piazza dump, and then rebuilds
+tables EdxPiazza.contents, and EdxPiazza.users. Piazza
+is a company offering forum services. Some instructors
+who use OpenEdX prefer that forum to the one built into
+the platform.
 
-Example JSON element within a Piazza dump. All
-elements are held within one array:
+A Piazza dump contains two files: class_content.json (post contents),
+and users.json with info about individual users. 
+
+PiazzaImporter is a singleton. It imports both the posts
+and the users. Users turn into PiazzaUser instances, while
+posts turn into PiazzaPost instances. References among instances
+are constructed to mirror the relationships among JSON structures. 
+
+Once created, PiazzaImporter class acts like a list of posts. The
+first post pulled from the class_content.json file is PiazzaPost
+object PiazzaImporter[0], and so on.  
+
+Example JSON element within a Piazza class_content.json file. All
+elements are held within one JSON array:
 
 [
 {
@@ -97,8 +114,6 @@ Some leniency in column names:
                                 'endorse_tags' : 'tag_endorse_arr'
                                 }
 
-
-
 #******  ???
 Endorsement:
    anon_screen_name, endorsement_type, endorsement_post
@@ -108,6 +123,7 @@ Endorsement:
 #from UserDict import DictMixin
 import argparse
 import base64
+import copy
 import getpass
 import hashlib
 import json
@@ -227,8 +243,6 @@ class PiazzaImporter(object):
 
             # Load user info:
             self.importJsonUsersFromPiazzaZip(usersFileName)
-        return None
-
 
     def importJsonContentFromPiazzaZip(self, zipContentFileName):
         '''
@@ -303,7 +317,19 @@ class PiazzaImporter(object):
             jsonStr = ''.join([line.strip() for line in jsonArr])
             userInfoArray = json.loads(jsonStr)
             PiazzaImporter.usersByPiazzaId  = {}
+            PiazzaImporter.usersByTrueUserName  = {}
             for userJsonStruct in userInfoArray:
+                # Maintain a map of user's real name to its 
+                # Piazza uid:
+                try:
+                    thePiazzaId = userJsonStruct['user_id']
+                    theUserRealName = userJsonStruct['name']
+                    PiazzaImporter.usersByTrueUserName[theUserRealName] = thePiazzaId
+                except KeyError:
+                    # If either 'user_id' or name' wasn't in the userJsonStruct,
+                    # no entry are entering into PiazzaImporter.usersByTrueUserName
+                    pass
+                # Build a PiazzaUser instance:
                 userObj = PiazzaUser(userJsonStruct)
                 # Add the new PiazzaUser instance to the 
                 # class variable usersByPiazzaId dict:
@@ -339,15 +365,18 @@ class PiazzaImporter(object):
 
     # ----------------------------------------  Getters ------------------------------------------
     
-    def getChildArr(self, jsonObj):
+    def getChildArr(self, piazzaPostObj):
         '''
-        Return an array that contains the children internalized
+        Return an array that contains the 'children' field internalized
         JSON structures of the given JSON object structure.
         
-        :param jsonObj:
-        :type jsonObj:
+        :param piazzaPostObj:
+        :type piazzaPostObj:
+        :return array of user_int_id that point to child objects. Any -1
+            entries occur when a child object did not have an associated
+            human associated with it.
         '''
-        return jsonObj.get('children', None)
+        return piazzaPostObj.get('children', None)
                 
     
     def getPosterUidAnon(self, oidOrDict):
@@ -398,9 +427,14 @@ class PiazzaImporter(object):
         try:
             historyArr = piazzaObj['history']
         except (KeyError):
-            raise KeyError("Dict parameter (%s) contains no 'history' array." % str(piazzaObj))
+            # Does the object itself have a 'subject' key?:
+            try:
+                return(piazzaObj['subject'])
+            except KeyError:
+                raise KeyError("Dict parameter (%s) contains no 'history' array." % str(piazzaObj))
         try:
-            return historyArr[0]['subject']
+            # Return the last (i.e. oldest) entry in the history:
+            return historyArr[-1]['subject']
         except KeyError:
             raise ValueError("History array's first dict element contains no 'subject' entry (%s)." % str(historyArr))
         except IndexError:
@@ -419,16 +453,18 @@ class PiazzaImporter(object):
         elif type(oidOrDictOrPiazzaPostObj) == dict or isinstance(oidOrDictOrPiazzaPostObj, PiazzaPost): 
             piazzaObj = oidOrDictOrPiazzaPostObj
             
+        historyArr = piazzaObj['history']
+        # Maybe this the object whose content we are
+        # to get is itself one of the history objects:
+        if historyArr is None:
+                return(piazzaObj.getRaw('content'))
         try:
-            historyArr = piazzaObj['history']
-        except (KeyError):
-            raise KeyError("Dict parameter (%s) contains no 'history' array." % str(piazzaObj))
-        try:
-            return historyArr[0]['content']
+            resContentArr = []
+            for historyObj in historyArr:
+                resContentArr.append(historyObj.getRaw('content'))
+            return(resContentArr)
         except KeyError:
-            raise ValueError("History array's first dict element contains no 'subject' entry (%s)." % str(historyArr))
-        except IndexError:
-            raise ValueError("Dict parameter 'history' in an empty array (%s)." % str(piazzaObj))
+            resContentArr.append(None)
             
 
     #*********** Continue testing here
@@ -665,6 +701,18 @@ class PiazzaImporter(object):
         # Find existing instance for this JSON obj (dict),
         # or have a new one made:
 
+        oid = PiazzaImporter.makeHashFromJsonDict(jsonDict)
+
+        # Try to find this OID among the already
+        # created instances: caller may make multiple
+        # PiazzaPost instantiations with the same JSON
+        # object; we'll just find the respective object
+        # and return it:
+        try:
+            return PiazzaPost.piazzaPostInstances[oid]
+        except KeyError:
+            pass
+
         piazzaPostObj = PiazzaPost(jsonDict)
 
         return piazzaPostObj
@@ -813,6 +861,8 @@ class PiazzaPostMetaclass(type):
     def __str__(self):
         return self.__name__
     
+    def __len__(self):
+        return len(self.piazzaPostInstances)
     
 class PiazzaPost(object):    
     '''
@@ -842,7 +892,8 @@ class PiazzaPost(object):
         method must also take those args and do the 
         call to this __init__() method with the args. 
         '''
-        self.nameValueDict = jsonDict
+        self.nameValueDict = copy.deepcopy(jsonDict)
+        
         # Add anon_screen_name to this instance's attribute:
         # Three cases: if we are building from a main content post
         # JSON struct, the Piazza ID is in field 'id'.
@@ -867,6 +918,11 @@ class PiazzaPost(object):
             user_int_id = PiazzaImporter.idPiazza2UserIntId(piazzaId)
         self['anon_screen_name'] = 'anon_screen_name_redacted' 
         self['user_int_id'] = user_int_id
+        
+        # Replace the Piazza 'id' field with piazza_id
+        # to distinguish among all the damn uids floating
+        # around:
+        self['piazza_id'] = piazzaId
         
         # The following (commented) code enters anon ids
         # for each Piazza id in fields tag_good_arr and
@@ -897,12 +953,8 @@ class PiazzaPost(object):
         # If there is a change log, turn each
         # entry into its own PiazzaPost instance.
         # Also replace name by anonymous name:
-        try:
-            changeLogField = self['change_log']
-        except KeyError:
-            # New object has no change_log field:
-            pass
-        else:
+        changeLogField = self['change_log']
+        if changeLogField is not None:
             # New object does have a change_log field:
             changeLogObjs = []
             for oneChangeJson in changeLogField:
@@ -913,12 +965,8 @@ class PiazzaPost(object):
         # If there is a history array, turn each
         # entry into its own PiazzaPost instance.
         # Also replace Piazza uid by anonymous name:
-        try:
-            historyField = self['history']
-        except KeyError:
-            # New object has no history field:
-            pass
-        else:
+        historyField = self['history']
+        if historyField is not None:
             # New object does have a history field, which is
             # a JSON array of history structs (subject, content, created, anon, and uid):
             historyObjs = []
@@ -926,10 +974,18 @@ class PiazzaPost(object):
                 oneHistoryObj = PiazzaPost(oneHistoryJson, buildingHistoryEventObj=True)
                 piazzaId = oneHistoryObj.get('uid')
                 if piazzaId is not None:
-                    self['user_int_id'] = PiazzaImporter.idPiazza2UserIntId(piazzaId)
+                    oneHistoryObj['user_int_id'] = PiazzaImporter.idPiazza2UserIntId(piazzaId)
                 historyObjs.append(oneHistoryObj)
             self['history'] = historyObjs
 
+    def values(self):
+        return self.nameValueDict.values()
+    
+    def items(self):
+        return self.nameValueDict.items()
+    
+    def has_key(self, key):
+        return(self.nameValueDict.has_key(key))
     
     def getPiazzaIdFromChangeEvent(self, jsonDict):
         '''
@@ -951,7 +1007,8 @@ class PiazzaPost(object):
     def getPiazzaIdFromHistoryEvent(self, jsonDict):
         '''
         Pull a Piazza ID out of a history event, if it's
-        there. The Piazza id there is in field 'uid': 
+        there. The Piazza id there is in field 'uid'. However,
+         
         Return None if no Piazza ID is present in the JSON obj.
         
         :param jsonDict:
@@ -1001,7 +1058,14 @@ class PiazzaPost(object):
         # of the JSON dict; pick those out, and call
         # the proper retrieval methods:         
         if key == 'subject':
-            return PiazzaImporter.singletonPiazzaImporter.getSubject(self)
+            # Subjects are properies of the history objects.
+            # Those ojbs are in an array within the 'history'
+            # field, if it exists. Method getSubject() runs
+            # a recursive descend into the history ojbs to find
+            # the first subject. Eventually the history obj
+            # is found, and will have a 'subject' property
+            if not self.nameValueDict.has_key('subject'):
+                return PiazzaImporter.singletonPiazzaImporter.getSubject(self)
         
         # Allow 'body' instead of content for compatibility
         # with OpenEdX forum:
@@ -1020,9 +1084,32 @@ class PiazzaPost(object):
         
         # Allow 'piazza_id' in place of 'id':
         if key == 'piazza_id':
-            key = 'id'
-        
-        jsonValue = self.nameValueDict[key]
+            if self.nameValueDict.has_key('id'):
+                key = 'id'
+            elif self.nameValueDict.has_key('uid'):
+                # Sometimes 'uid' fields in Piazza's json structs
+                # contain a Piazza user id, other times, the value
+                # of the 'uid' field is a user's real name. During
+                # method importJsonUsersFromPiazzaZip() we build
+                # a map from user real names to Piazza uids, try
+                # that map:
+                try:
+                    return PiazzaImporter.usersByTrueUserName[self.nameValueDict['uid']]
+                except KeyError:
+                    return(self.nameValueDict.get('uid', ''))
+                
+        try:
+            # We never fail when a property doesn't
+            # exist; just return None. Client can
+            # use has_key(), or keys() on a PiazzaPost object:
+            jsonValue = self.nameValueDict[key]
+        except KeyError:
+            if key == 'children' or\
+                key == 'change_log':
+                return []
+            else:
+                return(None)
+    
         if key == 'children':
             jsonValueArr = []
             for jsonValueEl in jsonValue:
@@ -1045,12 +1132,24 @@ class PiazzaPost(object):
     
     def keys(self):
         theKeys = self.nameValueDict.keys()
-        theKeys.extend(['anon_screen_name', 'oid'])
+        theKeys.append('oid')
         return theKeys
     
     def get(self, key, default=None):
-        return self.nameValueDict.get(key, default)
+        # Using self.nameValueDict.get(key, default)
+        # as the body of this msg would return the 
+        # array of JSON that makes up the value of
+        # the 'children' field in posts. To match
+        # Python semantics, we instead return the
+        # same as __getitem__(). To get the JSON,
+        # use getRaw().
+        try:
+            return self.nameValueDict[key]
+        except KeyError:
+            return(default)
 
+    def getRaw(self, key, default=None):
+        return self.nameValueDict.get(key, default)
 
     def toTuple(self):
         '''
@@ -1202,7 +1301,7 @@ class PiazzaUser(object):
         
         jsonDict['piazza_id'] = jsonDict['user_id']
         
-        # Add two the new key/values user_int_id (default -1),
+        # Add the two new key/values user_int_id (default -1),
         # and anon_screen_name (default 'anon_screen_name_redacted')
         jsonDict['user_int_id'] = -1
         jsonDict['anon_screen_name'] = 'anon_screen_name_redacted'
@@ -1274,6 +1373,9 @@ class PiazzaUser(object):
         theKeys = self.nameValueDict.keys()
         theKeys.extend(['anon_screen_name', 'oid'])
         return theKeys
+
+    def has_key(self, key):
+        return(self.nameValueDict.has_key(key))
     
     def values(self):
         return self.nameValueDict.values()
@@ -1395,6 +1497,6 @@ if __name__ == '__main__':
                                     mySQLUser,
                                     mySQLPwd,
                                     args.tablename, 
-                                    args.jsonFileName, 
-                                    mappingFile=args.mappingFile if args.mappingFile else None)
+                                    args.jsonFileName 
+                                    )
     piazzaImporter.doImport()
