@@ -81,6 +81,9 @@ class EdxForumScrubber(object):
     #doublQuoteReplPattern = re.compile(r'[^\\]{0,1}"')
     doublQuoteReplPattern = re.compile(r'[\\]{0,}"')
     
+    # Pattern for extracting number from 'ObjectId(12345)':
+    oidNumPattern = re.compile(r'ObjectId\("([^"]*)')
+
     def __init__(self, 
                  bsonFileName, 
                  mysqlDbObj=None, 
@@ -123,7 +126,7 @@ class EdxForumScrubber(object):
             self.mysql_passwd = self.getMySQLPasswd()
             self.mysql_dbhost ='localhost'
             self.mysql_user = getpass.getuser() # mySQLUser that started this process
-            self.mydb = MySQLDB(mySQLUser=self.mysql_user, passwd=self.mysql_passwd, db=self.forumDbName)
+            self.mydb = MySQLDB(user=self.mysql_user, passwd=self.mysql_passwd, db=self.forumDbName)
         else:
             self.mydb = mysqlDbObj
 
@@ -225,7 +228,7 @@ class EdxForumScrubber(object):
                 # Check whether 'up' can be converted to a list
                 list(mongoRecordObj['up'])
             except Exception as e:
-                self.logInfo('Error in conversion' + `e`)
+                self.logInfo("Error in conversion of 'up' field to a list (setting cell to -1):" + `e`)
                 mongoRecordObj['up'] ='-1'
             
             self.insert_content_record(mysqlDbObj, mysqlTable, mongoRecordObj);
@@ -451,6 +454,19 @@ class EdxForumScrubber(object):
         # in makeDict() isn't enough, but it's not.
         # Who the hell knows with these encodings:
         mongoRecordObj['body'] = mongoRecordObj['body'].encode('utf-8').strip();
+
+	# If present: rename field '_id' to 'forum_post_id'
+        try:
+            id = mongoRecordObj['_id']
+            idNumMatch = EdxForumScrubber.oidNumPattern.match(id)
+	    if idNumMatch is not None:
+                idNum = idNumMatch.group(1)
+            else:
+                idNum = -1
+            mongoRecordObj['forum_post_id'] = idNum
+            del mongoRecordObj['_id']
+        except KeyError:
+            pass
     
         if self.anonymize:    
             mongoRecordObj = self.anonymizeRecord(mongoRecordObj)
@@ -488,6 +504,7 @@ class EdxForumScrubber(object):
             posterColHeader = 'screen_name'
             
         createCmd = "CREATE TABLE `contents` ( \
+                  `forum_post_id` int(11) NOT NULL DEFAULT -1, \
                   `%s` varchar(40) NOT NULL DEFAULT 'anon_screen_name_redacted', \
                   `type` varchar(20) NOT NULL, \
                   `anonymous` varchar(10) NOT NULL, \
