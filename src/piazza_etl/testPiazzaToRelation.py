@@ -8,19 +8,33 @@ TODO:
      swift@cs.rochester.edu,hqwn8jq5UdZ,stanford.edu__37c7c49c477d4689526ffbf924f3f528                                                                                                                kyleisliving@gmail.com,hqv1vcncSST,stanford.edu__70511e8ac611c4e730405e5998aef007
      kyleisliving@gmail.com,hqv1vcncSST,stanford.edu__70511e8ac611c4e730405e5998aef007
 '''
+import MySQLdb
 import json
 import unittest
 from unittest.case import skipIf
+import warnings
 
 from piazza_etl.piazza_to_relation import PiazzaImporter, PiazzaPost
 
 
-DO_ALL = False
+DO_ALL = True
 
 class Test(unittest.TestCase):
 
     def setUp(self):
         PiazzaImporter.CONVERT_FUNCTIONS_DB = 'unittest'
+
+        # Ensure that MySQL warnings raise exceptions.
+        # We have several tests that examine whether Piazza
+        # uids are turned into user_int_ids. That conversion 
+        # only happens if the MySQL on this server has all the 
+        # right databases loaded. If not, related queries
+        # just generate warnings to stderr, and the conversions
+        # quietly fail. Then the user_int_ids will contain -1,
+        # and assertions for them being otherwise fail.
+        # So we turn MySQL warnings into errors, so we can
+        # tell:
+        warnings.filterwarnings('error', 'zero rows fetched*', category=MySQLdb.Warning)
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaPostSingletonMechanism(self):
@@ -132,9 +146,10 @@ class Test(unittest.TestCase):
         self.assertEqual(211516, importer.idPiazza2UserIntId('hc19qkoyc9C'))
 
 
-    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    #****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testContentLoadingToMemory(self):
         
+        warnings.filterwarnings('error', 'A MySQL warning occurred; likely empty query result.', category=MySQLdb.Warning)
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
                                         '',               # MySQL pwd
                                         'unittest',       # MySQL db
@@ -381,8 +396,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                        'data/test_PiazzaUsers.json',
-                                        mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json'
+                                        )
 
         oneObj = piazzaImporter[0]
         anon_screen_name_1st = oneObj['anon_screen_name']
@@ -397,8 +412,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                        'data/test_PiazzaUsers.json',
-                                        mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json'
+                                        )
 
         # Get children of first JSON obj:
         children = piazzaImporter[0]['children']
@@ -415,9 +430,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                        'data/test_PiazzaUsers.json',
-                                        mappingFile='data/test_AccountMappingInput.csv')
-
+                                        'data/test_PiazzaUsers.json'
+                                        )
         secondObj = piazzaImporter[1]
         self.assertEqual(secondObj, piazzaImporter[secondObj['oid']])
        
@@ -428,8 +442,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                        'data/test_PiazzaUsers.json',
-                                        mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json'
+                                        )
         firstObj = piazzaImporter[0]
         secondObj = piazzaImporter[1]
         for i,obj in enumerate(piazzaImporter):
@@ -439,7 +453,7 @@ class Test(unittest.TestCase):
                 self.assertEqual(secondObj, obj)
 
         
-    #****@skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
+    @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testChildRecursion(self):
         
         piazzaImporter = PiazzaImporter('unittest',       # MySQL user 
@@ -461,7 +475,6 @@ class Test(unittest.TestCase):
                        u'2014-01-28T02:30:03Z', 
                        u'2014-01-28T02:30:03Z',
                        u'2014-01-22T08:09:32Z', 
-                       None
                        ]
         self.assertEqual(groundTruth, createDates)
         
@@ -469,10 +482,10 @@ class Test(unittest.TestCase):
         createDate = piazzaPostObj['created']
         children = piazzaPostObj['children']
         createDates = []
-        if len(children) > 0 and createDate is not None:
+        if createDate is not None:
             createDates.append(createDate)
-            for child in children:
-                createDates.extend(self.childGetObjDates(child))
+        for child in children:
+            createDates.extend(self.childGetObjDates(child))
         return createDates
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
@@ -482,8 +495,8 @@ class Test(unittest.TestCase):
                                         'unittest',       # MySQL db
                                         'piazza_content', # MySQL table
                                         'data/test_PiazzaContent.json', # Test file from Piazza
-                                        'data/test_PiazzaUsers.json',
-                                        mappingFile='data/test_AccountMappingInput.csv')
+                                        'data/test_PiazzaUsers.json'
+                                        )
         types = []
         for piazzaObj in piazzaImporter:
             types.extend(self.getAllFieldsFromX(piazzaObj, 'type'))
