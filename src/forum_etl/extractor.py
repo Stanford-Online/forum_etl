@@ -81,9 +81,6 @@ class EdxForumScrubber(object):
     #doublQuoteReplPattern = re.compile(r'[^\\]{0,1}"')
     doublQuoteReplPattern = re.compile(r'[\\]{0,}"')
     
-    # Pattern for extracting number from 'ObjectId(12345)':
-    oidNumPattern = re.compile(r'ObjectId\("([^"]*)')
-
     def __init__(self, 
                  bsonFileName, 
                  mysqlDbObj=None, 
@@ -457,13 +454,7 @@ class EdxForumScrubber(object):
 
         # If present: rename field '_id' to 'forum_post_id'
         try:
-            rawMongoIdValue = mongoRecordObj['_id']
-            idNumMatch = EdxForumScrubber.oidNumPattern.match(rawMongoIdValue)
-            if idNumMatch is not None:
-                idNum = idNumMatch.group(1)
-            else:
-                idNum = -1
-            mongoRecordObj['forum_post_id'] = idNum
+            mongoRecordObj['forum_post_id'] = mongoRecordObj['_id']
             del mongoRecordObj['_id']
         except KeyError:
             pass
@@ -504,7 +495,7 @@ class EdxForumScrubber(object):
             posterColHeader = 'screen_name'
             
         createCmd = "CREATE TABLE `contents` ( \
-                  `forum_post_id` int(11) NOT NULL DEFAULT -1, \
+                  `forum_post_id` varchar(40) NOT NULL DEFAULT 'none', \
                   `%s` varchar(40) NOT NULL DEFAULT 'anon_screen_name_redacted', \
                   `type` varchar(20) NOT NULL, \
                   `anonymous` varchar(10) NOT NULL, \
