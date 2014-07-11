@@ -455,11 +455,11 @@ class EdxForumScrubber(object):
         # Who the hell knows with these encodings:
         mongoRecordObj['body'] = mongoRecordObj['body'].encode('utf-8').strip();
 
-	# If present: rename field '_id' to 'forum_post_id'
+        # If present: rename field '_id' to 'forum_post_id'
         try:
-            id = mongoRecordObj['_id']
-            idNumMatch = EdxForumScrubber.oidNumPattern.match(id)
-	    if idNumMatch is not None:
+            rawMongoIdValue = mongoRecordObj['_id']
+            idNumMatch = EdxForumScrubber.oidNumPattern.match(rawMongoIdValue)
+            if idNumMatch is not None:
                 idNum = idNumMatch.group(1)
             else:
                 idNum = -1
@@ -596,6 +596,7 @@ class MongoRecord(DictMixin):
         # screen name. Anonymization of this column happens later:
         mongoRecordDict = OrderedDict(
                          {
+                           '_id' : str(mongoRecordStruct.get('_id')),
                            'anon_screen_name' : str(mongoRecordStruct.get('author_username', '')),
                            'type' : str(mongoRecordStruct.get('_type')),
                 		   'anonymous' : str(mongoRecordStruct.get('anonymous')),

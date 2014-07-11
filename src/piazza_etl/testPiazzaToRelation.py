@@ -34,7 +34,7 @@ class Test(unittest.TestCase):
         # and assertions for them being otherwise fail.
         # So we turn MySQL warnings into errors, so we can
         # tell:
-        warnings.filterwarnings('error', 'zero rows fetched*', category=MySQLdb.Warning)
+        warnings.filterwarnings(action='error', message='zero rows fetched*', category=MySQLdb.Warning, mmodule)
 
     @skipIf (not DO_ALL, 'comment me if do_all == False, and want to run this test')
     def testPiazzaPostSingletonMechanism(self):
