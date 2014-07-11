@@ -336,7 +336,8 @@ class EdxForumScrubber(object):
     
     def prune_zipcode(self, body):
         '''
-        Prunes the zipcdoe from a given string and returns the string without zipcode
+        Prunes the zipcdoe from a given string and returns the string with zipcode
+        replaced by <zipRedac>.
 
         :param body: forum post
         :type body: String
@@ -377,6 +378,23 @@ class EdxForumScrubber(object):
 
 
     def anonymizeRecord(self, mongoRecordObj):
+        '''
+        Anonymize one forum record, which came from its original
+        MongoDB home. The following is done:
+            - Anything in the post body that looks like a phone number is replaced by <phoneRedac>
+            - Anything that looks like a zipcode in the body is replaced by <zipRedac>
+            - Occurrence of email addresses are replaced by <emailRedac>
+            - Any occurrence of the poster's name is replace by anon_screen_name_redacted. This
+                  token can be replaced by the also anonymous uid that is used in other tables:
+                  anon_screen_name.
+            - The user_int_id, which is the uid used by the platform software is replaced by 
+                  a simple transformation, which can be reversed in MySQL. That recovered number
+                  can then be used as key into the UserGrade table in the private part of the data store where
+                  the forum data is deposited. 
+        
+        :param mongoRecordObj:
+        :type mongoRecordObj:
+        '''
         
         body = mongoRecordObj['body']
         body = self.prune_numbers(body)
@@ -394,11 +412,11 @@ class EdxForumScrubber(object):
         # Redact poster'posterNamePart fullName from the post;
         # get tuple (fullUserName, screenName, anon_screen_name) from
         # the fullName cache (which is keyed off user_int_id):
-        fullName, screen_name, anon_screen_name = self.userCache.get(int(mongoRecordObj['user_int_id']), ('', '', ''))
+        fullName, screen_name, anon_screen_name = self.userCache.get(int(mongoRecordObj['forum_int_id']), ('', '', ''))
             # If not allowed to use hash of other db parts,
             # then drop anon_screen_name:
         if not self.allowAnonScreenName:
-            anon_screen_name = 'anon_screen_name_redacted'
+            anon_screen_name = '<anon_screen_name_redacted>'
         try:
         # Check whether any part of the poster's
         # name is in the body, and redact if needed:
@@ -423,12 +441,21 @@ class EdxForumScrubber(object):
         # Trim the name of anyone in the class from the
         # post. This method currently does nothing, b/c
         # some of the names people give are very common
-        # English words:
+        # English words: This method currently does nothing.
+        # Its implementation removes too much:
         body = self.trimnames(body)
         
         # Update the record instance with the modified body:
         mongoRecordObj['body'] = body
         mongoRecordObj['anon_screen_name'] = anon_screen_name
+        
+        # Scramble user_int_id to be different, but recoverable from
+        # the true user_int_id:
+        try:
+            user_int_id = int(mongoRecordObj['forum_int_id'])
+            mongoRecordObj['forum_int_id'] = (user_int_id * 2) + 5
+        except KeyError:
+            self.logInfo("Expected a value in mongo record field 'forum_int_id', but that field not found.")
         
         return mongoRecordObj
 
@@ -501,7 +528,7 @@ class EdxForumScrubber(object):
                   `anonymous` varchar(10) NOT NULL, \
                   `anonymous_to_peers` varchar(10) NOT NULL, \
                   `at_position_list` varchar(200) NOT NULL, \
-                  `user_int_id` int(11) NOT NULL, \
+                  `forum_int_id` bigint UNSIGNED NOT NULL, \
                   `body` varchar(2500) NOT NULL, \
                   `course_display_name` varchar(100) NOT NULL, \
                   `created_at` datetime NOT NULL, \
@@ -593,7 +620,7 @@ class MongoRecord(DictMixin):
                 		   'anonymous' : str(mongoRecordStruct.get('anonymous')),
                 		   'anonymous_to_peers' : str(mongoRecordStruct.get('anonymous_to_peers')),
                 		   'at_position_list' : str(mongoRecordStruct.get('at_position_list')),
-                		   'user_int_id' : mongoRecordStruct.get('author_id'), # numeric id
+                		   'forum_int_id' : mongoRecordStruct.get('author_id'), # numeric id
                            'body' : re.sub(EdxForumScrubber.doublQuoteReplPattern, '\\"', mongoRecordStruct.get('body')),
                 		   'course_display_name' : str(mongoRecordStruct.get('course_id')),
                 		   'created_at' : str(mongoRecordStruct.get('created_at')),
