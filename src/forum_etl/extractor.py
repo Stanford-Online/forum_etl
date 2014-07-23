@@ -80,6 +80,42 @@ class EdxForumScrubber(object):
     # string are matched: no preceding character at all: 
     #doublQuoteReplPattern = re.compile(r'[^\\]{0,1}"')
     doublQuoteReplPattern = re.compile(r'[\\]{0,}"')
+
+    # Schema of EdxForum.contents: an ordered dict that is
+    # used twice: the table creation MySQL command is constructed
+    # from this dict, and the dict is used to ensure that
+    # all its keys (i.e. future column names) are present
+    # in each MongoDB object. See also createForumTable().
+    # In createForumTable() either entry anon_screen_name,
+    # or screen_name in the dict below will be deleted, based
+    # on whether we are asked to anonymize or not:
+
+    forumSchema = OrderedDict({})
+    
+    forumSchema['forum_post_id'] =  "varchar(40) NOT NULL DEFAULT 'unavailable'"
+    forumSchema['anon_screen_name'] =  "varchar(40) NOT NULL DEFAULT 'anon_screen_name_redacted'"  # This or next deleted based on anonymize yes/no
+    forumSchema['screen_name'] =  "varchar(40) NOT NULL DEFAULT 'anon_screen_name_redacted'"       # This or prev deleted based on anonymize yes/no
+    forumSchema['type'] =  "varchar(20) NOT NULL"
+    forumSchema['anonymous'] =  "varchar(10) NOT NULL"
+    forumSchema['anonymous_to_peers'] =  "varchar(10) NOT NULL"
+    forumSchema['at_position_list'] =  "varchar(200) NOT NULL"
+    forumSchema['forum_uid'] =  "varchar(40)  NOT NULL"
+    forumSchema['body'] =  "varchar(2500) NOT NULL"
+    forumSchema['course_display_name'] =  "varchar(100) NOT NULL"
+    forumSchema['created_at'] =  "datetime NOT NULL"
+    forumSchema['votes'] =  "varchar(200) NOT NULL"
+    forumSchema['count'] =  "int(11) NOT NULL"
+    forumSchema['down_count'] =  "int(11) NOT NULL"
+    forumSchema['up_count'] =  "int(11) NOT NULL"
+    forumSchema['up'] =  "varchar(200) DEFAULT NULL"
+    forumSchema['down'] =  "varchar(200) DEFAULT NULL"
+    forumSchema['comment_thread_id'] =  "varchar(255) DEFAULT NULL"
+    forumSchema['parent_id'] =  "varchar(255) DEFAULT NULL"
+    forumSchema['parent_ids'] =  "varchar(255) DEFAULT NULL"
+    forumSchema['sk'] =  "varchar(255) DEFAULT NULL"
+    forumSchema['confusion'] =  "varchar(20) NOT NULL DEFAULT ''"
+    forumSchema['happiness'] =  "varchar(20) NOT NULL DEFAULT ''"
+   
     
     def __init__(self, 
                  bsonFileName, 
@@ -159,7 +195,7 @@ class EdxForumScrubber(object):
         
         self.mydb.close()
         self.mongodb.close()
-        self.logInfo('Entered %d records into %s' % (self.counter, self.forumDbName + self.forumTableName))
+        self.logInfo('Entered %d records into %s' % (self.counter, self.forumDbName + '.' + self.forumTableName))
 
     def loadForumIntoMongoDb(self, bsonFilename):
 
@@ -228,6 +264,10 @@ class EdxForumScrubber(object):
                 self.logInfo("Error in conversion of 'up' field to a list (setting cell to -1):" + `e`)
                 mongoRecordObj['up'] ='-1'
             
+            # Make sure the MongoDB object has all fields that will
+            # be needed for the forum schema:
+            self.ensureSchemaAdherence(mongoRecordObj)
+
             self.insert_content_record(mysqlDbObj, mysqlTable, mongoRecordObj);
         
     def prepDatabase(self):
@@ -453,9 +493,13 @@ class EdxForumScrubber(object):
         # the true user_int_id:
         try:
             user_int_id = int(mongoRecordObj['forum_int_id'])
-            mongoRecordObj['forum_int_id'] = (user_int_id * 2) + 5
+            forum_uid = self.mydb.query('SELECT EdxPrivate.idInt2Forum(%s);' % str(user_int_id)).next()[0]
+            mongoRecordObj['forum_uid'] = forum_uid;
+            del mongoRecordObj['forum_int_id']
         except KeyError:
             self.logInfo("Expected a value in mongo record field 'forum_int_id', but that field not found.")
+        except IndexError:
+            self.logInfo("In conversion user_int_id to forum_uid via idInt2Forum(), did not obtain expected one-tuple.")
         
         return mongoRecordObj
 
@@ -515,38 +559,44 @@ class EdxForumScrubber(object):
             will be 'anon_screen_name', else it will be 'screen_name'
         :type anonymize: Boolean
         '''
-        
+
+        # Either 'anon_screen_name' or 'screen_name' are removed
+        # from the schema, depending on whether we are to anonymize
+        # or not:
         if anonymize:
-            posterColHeader = 'anon_screen_name'
+            del EdxForumScrubber.forumSchema['screen_name']
         else:
-            posterColHeader = 'screen_name'
-            
-        createCmd = "CREATE TABLE `contents` ( \
-                  `forum_post_id` varchar(40) NOT NULL DEFAULT 'none', \
-                  `%s` varchar(40) NOT NULL DEFAULT 'anon_screen_name_redacted', \
-                  `type` varchar(20) NOT NULL, \
-                  `anonymous` varchar(10) NOT NULL, \
-                  `anonymous_to_peers` varchar(10) NOT NULL, \
-                  `at_position_list` varchar(200) NOT NULL, \
-                  `forum_int_id` bigint UNSIGNED NOT NULL, \
-                  `body` varchar(2500) NOT NULL, \
-                  `course_display_name` varchar(100) NOT NULL, \
-                  `created_at` datetime NOT NULL, \
-                  `votes` varchar(200) NOT NULL, \
-                  `count` int(11) NOT NULL, \
-                  `down_count` int(11) NOT NULL, \
-                  `up_count` int(11) NOT NULL, \
-                  `up` varchar(200) DEFAULT NULL, \
-                  `down` varchar(200) DEFAULT NULL, \
-                  `comment_thread_id` varchar(255) DEFAULT NULL, \
-                  `parent_id` varchar(255) DEFAULT NULL, \
-                  `parent_ids` varchar(255) DEFAULT NULL, \
-                  `sk` varchar(255) DEFAULT NULL, \
-                  `confusion` varchar(20) NOT NULL DEFAULT 'none', \
-                  `happiness` varchar(20) NOT NULL DEFAULT 'none' \
-                ) ENGINE=MYISAM DEFAULT CHARSET=latin1" % posterColHeader
-                
+            del EdxForumScrubber.forumSchema['anon_screen_name']
+
+        # Construct a MySQL CREATE TABLE command, using the 
+        # forum schema in EdxForumScrubber.forumSchema:        
+        createCmd = "CREATE TABLE contents ("
+        for colName in EdxForumScrubber.forumSchema.keys():
+            createCmd += colName + ' ' + EdxForumScrubber.forumSchema.get(colName) + ','
+        
+        # Remove the trailing comma:
+        createCmd = createCmd[:-1]
+        createCmd += ');'
+        
         self.mydb.execute(createCmd)
+
+    def ensureSchemaAdherence(self, mongoObj):
+        '''
+        Ensure that given mongoObj has all forum schema's colums
+        as a field. If not present, field is added with value
+        set to None. If already present, the field is unchanged.
+        Reason for doing this: If the mongo object has missing
+        fields, then there won't be a corresponding column in 
+        the .csv file for row. This would shift cols left in,
+        for instance, Excel.
+        
+        :param mongoObj:
+        :type mongoObj:
+        '''
+        
+        for colName in EdxForumScrubber.forumSchema.keys():
+            # Default value: empty string:
+            mongoObj.setdefault(colName, '')
 
 #     def prepLogging(self):
 #         logFileName = 'forum_%s.log'%(datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
