@@ -541,6 +541,7 @@ class EdxForumScrubber(object):
             self.logErr("MySql error while inserting record %d: author name %s created_at %s: %s" % \
                          (self.counter, mongoRecordObj.getUserNameClear(), mongoRecordObj['created_at'], `e`))
             self.logErr("   Corresponding column values: %s" % str(mongoRecordObj.items()))
+            self.logErr("   Original MongoDb obj: %s" % str(mongoRecordObj))
             return
 
         self.counter += 1;
